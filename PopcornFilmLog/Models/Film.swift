@@ -11,8 +11,9 @@ nonisolated struct Film: Identifiable, Codable, Hashable, Sendable {
     let posterURL: String
     let runtime: String
     let isTV: Bool
+    let averageRating: Double
 
-    init(id: String = UUID().uuidString, title: String, year: String, genre: [String] = [], director: String = "", cast: [String] = [], synopsis: String = "", posterURL: String = "", runtime: String = "", isTV: Bool = false) {
+    init(id: String = UUID().uuidString, title: String, year: String, genre: [String] = [], director: String = "", cast: [String] = [], synopsis: String = "", posterURL: String = "", runtime: String = "", isTV: Bool = false, averageRating: Double = 0) {
         self.id = id
         self.title = title
         self.year = year
@@ -23,5 +24,6 @@ nonisolated struct Film: Identifiable, Codable, Hashable, Sendable {
         self.posterURL = posterURL
         self.runtime = runtime
         self.isTV = isTV
+        self.averageRating = averageRating
     }
 }

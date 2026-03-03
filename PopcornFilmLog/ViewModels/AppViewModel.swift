@@ -164,14 +164,30 @@ class AppViewModel {
         posts[index].comments.append(comment)
     }
 
-    func createPost(text: String) {
+    func createPost(text: String, photoURLs: [String] = [], mentionedFilm: Film? = nil) {
         let post = BuddyPost(
             userId: currentUser?.id ?? "",
             username: currentUser?.username ?? "",
             profileImageName: currentUser?.profileImageName ?? "avatar_1",
-            text: text
+            text: text,
+            photoURLs: photoURLs,
+            mentionedFilm: mentionedFilm
         )
         posts.insert(post, at: 0)
+    }
+
+    func saveProfilePhoto(_ data: Data) {
+        let path = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("profile_photo.jpg")
+        try? data.write(to: path)
+        currentUser?.customProfileImageURL = "local://profile_photo"
+        saveUser()
+    }
+
+    static func loadLocalProfilePhoto() -> Data? {
+        let path = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("profile_photo.jpg")
+        return try? Data(contentsOf: path)
     }
 
     func createList(name: String, description: String = "", isPublic: Bool = true) {

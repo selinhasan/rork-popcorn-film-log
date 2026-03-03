@@ -34,20 +34,44 @@ struct AvatarView: View {
         return abs(name.hashValue) % 10
     }
 
+    private var isFeminine: Bool {
+        avatarIndex >= 5
+    }
+
     var body: some View {
-        if let url = customURL, !url.isEmpty, let imageURL = URL(string: url) {
-            Color(PopcornTheme.sepiaBrown.opacity(0.15))
-                .frame(width: size, height: size)
-                .overlay {
-                    AsyncImage(url: imageURL) { phase in
-                        if let image = phase.image {
-                            image.resizable().aspectRatio(contentMode: .fill)
-                        } else {
-                            personAvatar
+        if let url = customURL, !url.isEmpty {
+            if url.hasPrefix("local://") {
+                localPhotoView
+            } else if let imageURL = URL(string: url) {
+                Color(PopcornTheme.sepiaBrown.opacity(0.15))
+                    .frame(width: size, height: size)
+                    .overlay {
+                        AsyncImage(url: imageURL) { phase in
+                            if let image = phase.image {
+                                image.resizable().aspectRatio(contentMode: .fill)
+                            } else {
+                                personAvatar
+                            }
                         }
+                        .allowsHitTesting(false)
                     }
-                    .allowsHitTesting(false)
-                }
+                    .clipShape(Circle())
+            } else {
+                personAvatar
+            }
+        } else {
+            personAvatar
+        }
+    }
+
+    @ViewBuilder
+    private var localPhotoView: some View {
+        if let data = AppViewModel.loadLocalProfilePhoto(),
+           let uiImage = UIImage(data: data) {
+            Image(uiImage: uiImage)
+                .resizable()
+                .aspectRatio(contentMode: .fill)
+                .frame(width: size, height: size)
                 .clipShape(Circle())
         } else {
             personAvatar
@@ -69,13 +93,32 @@ struct AvatarView: View {
                         .frame(width: size * 0.38, height: size * 0.38)
                         .offset(y: size * 0.02)
 
-                    hairStyle(color: colors.hair)
+                    if isFeminine {
+                        feminineHairStyle(color: colors.hair)
+                    } else {
+                        masculineHairStyle(color: colors.hair)
+                    }
+
+                    if isFeminine {
+                        Circle()
+                            .fill(colors.fg.opacity(0.6))
+                            .frame(width: size * 0.04, height: size * 0.04)
+                            .offset(x: -size * 0.2, y: size * 0.08)
+                        Circle()
+                            .fill(colors.fg.opacity(0.6))
+                            .frame(width: size * 0.04, height: size * 0.04)
+                            .offset(x: size * 0.2, y: size * 0.08)
+                    }
                 }
 
-                Capsule()
-                    .fill(colors.fg.opacity(0.8))
-                    .frame(width: size * 0.55, height: size * 0.28)
-                    .offset(y: size * 0.04)
+                if isFeminine {
+                    feminineBody(color: colors.fg)
+                } else {
+                    Capsule()
+                        .fill(colors.fg.opacity(0.8))
+                        .frame(width: size * 0.55, height: size * 0.28)
+                        .offset(y: size * 0.04)
+                }
             }
             .clipShape(Circle())
         }
@@ -83,34 +126,166 @@ struct AvatarView: View {
     }
 
     @ViewBuilder
-    private func hairStyle(color: Color) -> some View {
+    private func feminineBody(color: Color) -> some View {
+        let idx = avatarIndex - 5
+        switch idx {
+        case 0:
+            UnevenRoundedRectangle(topLeadingRadius: size * 0.12, bottomLeadingRadius: size * 0.04, bottomTrailingRadius: size * 0.04, topTrailingRadius: size * 0.12)
+                .fill(color.opacity(0.8))
+                .frame(width: size * 0.5, height: size * 0.28)
+                .offset(y: size * 0.04)
+        case 1:
+            Ellipse()
+                .fill(color.opacity(0.8))
+                .frame(width: size * 0.52, height: size * 0.3)
+                .offset(y: size * 0.04)
+        case 2:
+            Capsule()
+                .fill(color.opacity(0.8))
+                .frame(width: size * 0.48, height: size * 0.26)
+                .offset(y: size * 0.05)
+        case 3:
+            UnevenRoundedRectangle(topLeadingRadius: size * 0.15, bottomLeadingRadius: size * 0.02, bottomTrailingRadius: size * 0.02, topTrailingRadius: size * 0.15)
+                .fill(color.opacity(0.8))
+                .frame(width: size * 0.52, height: size * 0.28)
+                .offset(y: size * 0.04)
+        default:
+            Ellipse()
+                .fill(color.opacity(0.8))
+                .frame(width: size * 0.5, height: size * 0.28)
+                .offset(y: size * 0.04)
+        }
+    }
+
+    @ViewBuilder
+    private func masculineHairStyle(color: Color) -> some View {
         let idx = avatarIndex
-        switch idx % 5 {
+        switch idx {
         case 0:
             Capsule()
                 .fill(color)
-                .frame(width: size * 0.36, height: size * 0.2)
+                .frame(width: size * 0.36, height: size * 0.18)
                 .offset(y: -size * 0.1)
         case 1:
+            RoundedRectangle(cornerRadius: size * 0.04)
+                .fill(color)
+                .frame(width: size * 0.34, height: size * 0.14)
+                .offset(x: -size * 0.02, y: -size * 0.12)
+        case 2:
+            ZStack {
+                ForEach(0..<5, id: \.self) { i in
+                    Circle()
+                        .fill(color)
+                        .frame(width: size * 0.12, height: size * 0.12)
+                        .offset(
+                            x: CGFloat(i - 2) * size * 0.08,
+                            y: -size * 0.12
+                        )
+                }
+            }
+        case 3:
+            ZStack {
+                Capsule()
+                    .fill(color)
+                    .frame(width: size * 0.38, height: size * 0.16)
+                    .offset(y: -size * 0.12)
+                ForEach(0..<3, id: \.self) { i in
+                    Capsule()
+                        .fill(color)
+                        .frame(width: size * 0.06, height: size * 0.12)
+                        .offset(
+                            x: CGFloat(i - 1) * size * 0.1,
+                            y: -size * 0.18
+                        )
+                        .rotationEffect(.degrees(Double(i - 1) * 10))
+                }
+            }
+        default:
             Ellipse()
                 .fill(color)
-                .frame(width: size * 0.42, height: size * 0.24)
-                .offset(y: -size * 0.12)
-        case 2:
-            RoundedRectangle(cornerRadius: size * 0.06)
-                .fill(color)
-                .frame(width: size * 0.34, height: size * 0.16)
-                .offset(y: -size * 0.12)
-        case 3:
-            Circle()
-                .fill(color)
-                .frame(width: size * 0.44, height: size * 0.44)
-                .offset(y: -size * 0.06)
-        default:
-            Capsule()
-                .fill(color)
-                .frame(width: size * 0.4, height: size * 0.22)
+                .frame(width: size * 0.4, height: size * 0.2)
                 .offset(y: -size * 0.11)
+        }
+    }
+
+    @ViewBuilder
+    private func feminineHairStyle(color: Color) -> some View {
+        let idx = avatarIndex - 5
+        switch idx {
+        case 0:
+            ZStack {
+                Ellipse()
+                    .fill(color)
+                    .frame(width: size * 0.44, height: size * 0.26)
+                    .offset(y: -size * 0.1)
+                Capsule()
+                    .fill(color)
+                    .frame(width: size * 0.1, height: size * 0.32)
+                    .offset(x: -size * 0.2, y: size * 0.02)
+                Capsule()
+                    .fill(color)
+                    .frame(width: size * 0.1, height: size * 0.32)
+                    .offset(x: size * 0.2, y: size * 0.02)
+            }
+        case 1:
+            ZStack {
+                Ellipse()
+                    .fill(color)
+                    .frame(width: size * 0.42, height: size * 0.22)
+                    .offset(y: -size * 0.12)
+                Capsule()
+                    .fill(color)
+                    .frame(width: size * 0.12, height: size * 0.2)
+                    .offset(x: -size * 0.18, y: -size * 0.02)
+                Capsule()
+                    .fill(color)
+                    .frame(width: size * 0.12, height: size * 0.2)
+                    .offset(x: size * 0.18, y: -size * 0.02)
+            }
+        case 2:
+            ZStack {
+                Capsule()
+                    .fill(color)
+                    .frame(width: size * 0.42, height: size * 0.22)
+                    .offset(y: -size * 0.1)
+                Capsule()
+                    .fill(color)
+                    .frame(width: size * 0.08, height: size * 0.28)
+                    .rotationEffect(.degrees(-15))
+                    .offset(x: size * 0.16, y: -size * 0.14)
+                Circle()
+                    .fill(color)
+                    .frame(width: size * 0.14, height: size * 0.14)
+                    .offset(x: size * 0.2, y: -size * 0.24)
+            }
+        case 3:
+            ZStack {
+                ForEach(0..<6, id: \.self) { i in
+                    Capsule()
+                        .fill(color)
+                        .frame(width: size * 0.12, height: size * 0.24)
+                        .offset(
+                            x: CGFloat(i - 2) * size * 0.07,
+                            y: -size * 0.06
+                        )
+                        .rotationEffect(.degrees(Double(i - 2) * 6))
+                }
+                Ellipse()
+                    .fill(color)
+                    .frame(width: size * 0.44, height: size * 0.2)
+                    .offset(y: -size * 0.12)
+            }
+        default:
+            ZStack {
+                Ellipse()
+                    .fill(color)
+                    .frame(width: size * 0.46, height: size * 0.24)
+                    .offset(y: -size * 0.1)
+                Circle()
+                    .fill(color)
+                    .frame(width: size * 0.18, height: size * 0.18)
+                    .offset(y: -size * 0.22)
+            }
         }
     }
 }

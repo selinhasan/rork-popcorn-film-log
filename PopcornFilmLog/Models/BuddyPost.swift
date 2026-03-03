@@ -18,8 +18,10 @@ nonisolated struct BuddyPost: Identifiable, Codable, Hashable, Sendable {
     let date: Date
     let postType: PostType
     let relatedFilm: Film?
+    var photoURLs: [String]
+    var mentionedFilm: Film?
 
-    init(id: String = UUID().uuidString, userId: String, username: String, profileImageName: String = "avatar_1", text: String, likeCount: Int = 0, isLiked: Bool = false, comments: [PostComment] = [], date: Date = Date(), postType: PostType = .text, relatedFilm: Film? = nil) {
+    init(id: String = UUID().uuidString, userId: String, username: String, profileImageName: String = "avatar_1", text: String, likeCount: Int = 0, isLiked: Bool = false, comments: [PostComment] = [], date: Date = Date(), postType: PostType = .text, relatedFilm: Film? = nil, photoURLs: [String] = [], mentionedFilm: Film? = nil) {
         self.id = id
         self.userId = userId
         self.username = username
@@ -31,6 +33,8 @@ nonisolated struct BuddyPost: Identifiable, Codable, Hashable, Sendable {
         self.date = date
         self.postType = postType
         self.relatedFilm = relatedFilm
+        self.photoURLs = photoURLs
+        self.mentionedFilm = mentionedFilm
     }
 }
 

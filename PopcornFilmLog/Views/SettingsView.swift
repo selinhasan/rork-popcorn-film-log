@@ -1,4 +1,5 @@
 import SwiftUI
+import PhotosUI
 
 struct SettingsView: View {
     @Environment(AppViewModel.self) private var viewModel
@@ -165,6 +166,7 @@ struct EditProfileSheet: View {
     @State private var customImageURL = ""
     @State private var password = ""
     @State private var newPassword = ""
+    @State private var selectedPhotoItem: PhotosPickerItem?
 
     var body: some View {
         NavigationStack {
@@ -189,6 +191,25 @@ struct EditProfileSheet: View {
                                             Circle().stroke(PopcornTheme.warmRed, lineWidth: 2)
                                         }
                                     }
+                            }
+                        }
+                    }
+
+                    PhotosPicker(selection: $selectedPhotoItem, matching: .images) {
+                        HStack {
+                            Image(systemName: "photo.on.rectangle")
+                                .foregroundStyle(PopcornTheme.sepiaBrown)
+                            Text("Upload a photo")
+                                .font(.subheadline)
+                                .foregroundStyle(PopcornTheme.darkBrown)
+                        }
+                    }
+                    .onChange(of: selectedPhotoItem) { _, newItem in
+                        guard let item = newItem else { return }
+                        Task {
+                            if let data = try? await item.loadTransferable(type: Data.self) {
+                                viewModel.saveProfilePhoto(data)
+                                customImageURL = "local://profile_photo"
                             }
                         }
                     }
@@ -358,6 +379,14 @@ struct EditTopFiveSheet: View {
     }
 
     private var availableFilms: [Film] {
+        if !searchText.isEmpty {
+            let allMatches = MockDataService.allContent.filter { film in
+                !topFive.contains { $0.id == film.id } &&
+                film.title.localizedCaseInsensitiveContains(searchText)
+            }
+            return Array(allMatches.prefix(15))
+        }
+
         let highestRated = viewModel.diaryEntries
             .sorted { $0.rating > $1.rating }
             .map(\.film)
@@ -368,12 +397,7 @@ struct EditTopFiveSheet: View {
             !highestRated.contains { $0.id == film.id }
         }
 
-        var combined = highestRated + popular
-
-        if !searchText.isEmpty {
-            combined = combined.filter { $0.title.localizedCaseInsensitiveContains(searchText) }
-        }
-
+        let combined = highestRated + popular
         return Array(combined.prefix(15))
     }
 }

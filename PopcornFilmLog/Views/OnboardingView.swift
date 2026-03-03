@@ -1,4 +1,5 @@
 import SwiftUI
+import PhotosUI
 
 struct OnboardingView: View {
     @Environment(AppViewModel.self) private var viewModel
@@ -7,6 +8,8 @@ struct OnboardingView: View {
     @State private var topFiveFilms: [Film] = []
     @State private var showImportSheet = false
     @State private var filmSearchText = ""
+    @State private var selectedPhotoItem: PhotosPickerItem?
+    @State private var hasCustomPhoto = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -56,23 +59,28 @@ struct OnboardingView: View {
     }
 
     private var avatarStep: some View {
-        VStack(spacing: 24) {
+        VStack(spacing: 20) {
             Spacer()
             Text("Choose your avatar")
                 .font(.system(.title2, design: .rounded, weight: .bold))
                 .foregroundStyle(PopcornTheme.darkBrown)
 
-            AvatarView(name: selectedAvatar, size: 100)
-                .animation(.spring(duration: 0.3), value: selectedAvatar)
+            AvatarView(
+                name: selectedAvatar,
+                size: 100,
+                customURL: hasCustomPhoto ? "local://profile_photo" : nil
+            )
+            .animation(.spring(duration: 0.3), value: selectedAvatar)
 
             LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 12), count: 5), spacing: 12) {
                 ForEach(MockDataService.defaultAvatars, id: \.self) { avatar in
                     Button {
                         selectedAvatar = avatar
+                        hasCustomPhoto = false
                     } label: {
                         AvatarView(name: avatar, size: 52)
                             .overlay {
-                                if selectedAvatar == avatar {
+                                if selectedAvatar == avatar && !hasCustomPhoto {
                                     Circle()
                                         .stroke(PopcornTheme.warmRed, lineWidth: 3)
                                 }
@@ -82,9 +90,29 @@ struct OnboardingView: View {
             }
             .padding(.horizontal, 32)
 
-            Text("You can upload a custom photo later in settings")
-                .font(.caption)
-                .foregroundStyle(PopcornTheme.subtleGray)
+            PhotosPicker(selection: $selectedPhotoItem, matching: .images) {
+                HStack(spacing: 8) {
+                    Image(systemName: "camera.fill")
+                    Text("Upload a photo")
+                        .font(.subheadline.weight(.medium))
+                }
+                .foregroundStyle(PopcornTheme.sepiaBrown)
+                .padding(.horizontal, 20)
+                .padding(.vertical, 10)
+                .background(Color.white, in: .capsule)
+                .overlay {
+                    Capsule().stroke(PopcornTheme.sepiaBrown.opacity(0.2), lineWidth: 1)
+                }
+            }
+            .onChange(of: selectedPhotoItem) { _, newItem in
+                guard let item = newItem else { return }
+                Task {
+                    if let data = try? await item.loadTransferable(type: Data.self) {
+                        viewModel.saveProfilePhoto(data)
+                        hasCustomPhoto = true
+                    }
+                }
+            }
 
             Spacer()
         }
@@ -108,6 +136,7 @@ struct OnboardingView: View {
                     .foregroundStyle(PopcornTheme.sepiaBrown)
                 TextField("Search for a film...", text: $filmSearchText)
                     .autocorrectionDisabled()
+                    .textInputAutocapitalization(.never)
                 if !filmSearchText.isEmpty {
                     Button { filmSearchText = "" } label: {
                         Image(systemName: "xmark.circle.fill")
@@ -171,6 +200,7 @@ struct OnboardingView: View {
                     }
                 }
             }
+            .scrollDismissesKeyboard(.interactively)
         }
     }
 
@@ -363,7 +393,8 @@ struct OnboardingView: View {
     }
 
     private func finishOnboarding() {
-        viewModel.updateProfile(profileImage: selectedAvatar, topFive: topFiveFilms)
+        let customURL = hasCustomPhoto ? "local://profile_photo" : nil
+        viewModel.updateProfile(profileImage: selectedAvatar, customImageURL: customURL, topFive: topFiveFilms)
         viewModel.completeOnboarding()
     }
 }

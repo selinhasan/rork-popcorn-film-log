@@ -23,7 +23,7 @@ struct BrowseView: View {
         }
         switch sortOption {
         case .popular: break
-        case .topRated: films.reverse()
+        case .topRated: films.sort { $0.averageRating > $1.averageRating }
         case .newest: films.sort { $0.year > $1.year }
         case .oldest: films.sort { $0.year < $1.year }
         }
@@ -148,9 +148,23 @@ struct BrowseView: View {
                             .font(.subheadline.weight(.medium))
                             .foregroundStyle(PopcornTheme.darkBrown)
                             .lineLimit(1)
-                        Text("\(film.year) · \(film.genre.first ?? "")")
-                            .font(.caption)
-                            .foregroundStyle(PopcornTheme.subtleGray)
+
+                        HStack(spacing: 4) {
+                            Text("\(film.year) · \(film.genre.first ?? "")")
+                                .font(.caption)
+                                .foregroundStyle(PopcornTheme.subtleGray)
+                            Spacer()
+                            if film.averageRating > 0 {
+                                HStack(spacing: 2) {
+                                    Image(systemName: "popcorn.fill")
+                                        .font(.system(size: 9))
+                                        .foregroundStyle(PopcornTheme.popcornYellow)
+                                    Text(String(format: "%.1f", film.averageRating))
+                                        .font(.caption2.weight(.semibold))
+                                        .foregroundStyle(PopcornTheme.darkBrown)
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -221,142 +235,167 @@ struct FilmDetailSheet: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(spacing: 20) {
-                    Color(PopcornTheme.sepiaBrown.opacity(0.15))
-                        .frame(height: 320)
-                        .overlay {
-                            AsyncImage(url: URL(string: film.posterURL)) { phase in
-                                if let image = phase.image {
-                                    image.resizable().aspectRatio(contentMode: .fill)
-                                } else {
-                                    Image(systemName: "film")
-                                        .font(.largeTitle)
-                                        .foregroundStyle(PopcornTheme.sepiaBrown)
-                                }
-                            }
-                            .allowsHitTesting(false)
-                        }
-                        .clipShape(.rect(cornerRadius: 16))
-                        .shadow(color: .black.opacity(0.1), radius: 12, y: 6)
-                        .padding(.horizontal)
-
-                    VStack(spacing: 8) {
-                        Text(film.title)
-                            .font(.title2.bold())
-                            .foregroundStyle(PopcornTheme.darkBrown)
-                            .multilineTextAlignment(.center)
-
-                        HStack(spacing: 8) {
-                            Text(film.year)
-                            if !film.runtime.isEmpty {
-                                Text("·")
-                                Text(film.runtime)
-                            }
-                            Text("·")
-                            Text(film.director)
-                        }
-                        .font(.subheadline)
-                        .foregroundStyle(PopcornTheme.sepiaBrown)
-                    }
-                    .padding(.horizontal)
-
-                    ScrollView(.horizontal) {
-                        HStack(spacing: 6) {
-                            ForEach(film.genre, id: \.self) { genre in
-                                Text(genre)
-                                    .font(.caption.weight(.medium))
-                                    .foregroundStyle(PopcornTheme.darkBrown)
-                                    .padding(.horizontal, 10)
-                                    .padding(.vertical, 5)
-                                    .background(PopcornTheme.popcornYellow.opacity(0.3), in: .capsule)
-                            }
-                        }
-                    }
-                    .contentMargins(.horizontal, 16)
-                    .scrollIndicators(.hidden)
-
-                    if !film.synopsis.isEmpty {
-                        Text(film.synopsis)
-                            .font(.body)
-                            .foregroundStyle(PopcornTheme.sepiaBrown)
-                            .padding(.horizontal)
-                    }
-
-                    VStack(spacing: 10) {
-                        Button {
-                            showLogSheet = true
-                        } label: {
-                            HStack {
-                                Image(systemName: "popcorn.fill")
-                                Text("Log This Film")
-                                    .fontWeight(.semibold)
-                            }
-                            .foregroundStyle(.white)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 14)
-                            .background(PopcornTheme.warmRed, in: .rect(cornerRadius: 12))
-                        }
-
-                        Button {
-                            if isOnWatchlist {
-                                viewModel.removeFromWatchlist(film)
-                            } else {
-                                viewModel.addToWatchlist(film)
-                            }
-                        } label: {
-                            HStack {
-                                Image(systemName: isOnWatchlist ? "bookmark.fill" : "bookmark")
-                                Text(isOnWatchlist ? "On Watchlist" : "Add to Watchlist")
-                                    .fontWeight(.medium)
-                            }
-                            .foregroundStyle(isOnWatchlist ? .white : PopcornTheme.darkBrown)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 14)
-                            .background(
-                                isOnWatchlist ? PopcornTheme.freshGreen : Color.white,
-                                in: .rect(cornerRadius: 12)
-                            )
+                VStack(spacing: 0) {
+                    ZStack(alignment: .bottom) {
+                        Color(PopcornTheme.sepiaBrown.opacity(0.15))
+                            .frame(height: 360)
                             .overlay {
-                                if !isOnWatchlist {
-                                    RoundedRectangle(cornerRadius: 12)
-                                        .stroke(PopcornTheme.sepiaBrown.opacity(0.2), lineWidth: 1)
-                                }
-                            }
-                        }
-                        .sensoryFeedback(.impact(weight: .light), trigger: isOnWatchlist)
-                    }
-                    .padding(.horizontal)
-
-                    if !buddyReviews.isEmpty {
-                        VStack(alignment: .leading, spacing: 10) {
-                            Text("Buddy Reviews")
-                                .font(.headline)
-                                .foregroundStyle(PopcornTheme.darkBrown)
-                                .padding(.horizontal)
-
-                            ForEach(buddyReviews) { entry in
-                                HStack(alignment: .top, spacing: 10) {
-                                    AvatarView(name: "avatar_2", size: 32)
-                                    VStack(alignment: .leading, spacing: 4) {
-                                        Text(entry.username)
-                                            .font(.subheadline.weight(.medium))
-                                            .foregroundStyle(PopcornTheme.darkBrown)
-                                        PopcornRatingDisplay(rating: entry.rating, isGoldenPopcorn: entry.isGoldenPopcorn)
-                                        if !entry.review.isEmpty {
-                                            Text(entry.review)
-                                                .font(.caption)
-                                                .foregroundStyle(PopcornTheme.sepiaBrown)
-                                        }
+                                AsyncImage(url: URL(string: film.posterURL)) { phase in
+                                    if let image = phase.image {
+                                        image.resizable().aspectRatio(contentMode: .fill)
+                                    } else {
+                                        Image(systemName: "film")
+                                            .font(.largeTitle)
+                                            .foregroundStyle(PopcornTheme.sepiaBrown)
                                     }
                                 }
-                                .padding(10)
-                                .background(Color.white, in: .rect(cornerRadius: 10))
+                                .allowsHitTesting(false)
+                            }
+                            .clipped()
+
+                        LinearGradient(
+                            colors: [.clear, .clear, PopcornTheme.cream.opacity(0.6), PopcornTheme.cream],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                        .frame(height: 360)
+                        .allowsHitTesting(false)
+                    }
+
+                    VStack(spacing: 16) {
+                        VStack(spacing: 8) {
+                            Text(film.title)
+                                .font(.title2.bold())
+                                .foregroundStyle(PopcornTheme.darkBrown)
+                                .multilineTextAlignment(.center)
+
+                            HStack(spacing: 8) {
+                                Text(film.year)
+                                if !film.runtime.isEmpty {
+                                    Text("·")
+                                    Text(film.runtime)
+                                }
+                                Text("·")
+                                Text(film.director)
+                            }
+                            .font(.subheadline)
+                            .foregroundStyle(PopcornTheme.sepiaBrown)
+
+                            if film.averageRating > 0 {
+                                HStack(spacing: 6) {
+                                    Image(systemName: "popcorn.fill")
+                                        .font(.caption)
+                                        .foregroundStyle(PopcornTheme.popcornYellow)
+                                    Text(String(format: "%.1f", film.averageRating))
+                                        .font(.subheadline.weight(.bold))
+                                        .foregroundStyle(PopcornTheme.darkBrown)
+                                    Text("avg from Popcorn users")
+                                        .font(.caption)
+                                        .foregroundStyle(PopcornTheme.subtleGray)
+                                }
+                            }
+                        }
+                        .padding(.horizontal)
+                        .padding(.top, -16)
+
+                        ScrollView(.horizontal) {
+                            HStack(spacing: 6) {
+                                ForEach(film.genre, id: \.self) { genre in
+                                    Text(genre)
+                                        .font(.caption.weight(.medium))
+                                        .foregroundStyle(PopcornTheme.darkBrown)
+                                        .padding(.horizontal, 10)
+                                        .padding(.vertical, 5)
+                                        .background(PopcornTheme.popcornYellow.opacity(0.3), in: .capsule)
+                                }
+                            }
+                        }
+                        .contentMargins(.horizontal, 16)
+                        .scrollIndicators(.hidden)
+
+                        if !film.synopsis.isEmpty {
+                            Text(film.synopsis)
+                                .font(.body)
+                                .foregroundStyle(PopcornTheme.sepiaBrown)
                                 .padding(.horizontal)
+                        }
+
+                        VStack(spacing: 10) {
+                            Button {
+                                showLogSheet = true
+                            } label: {
+                                HStack {
+                                    Image(systemName: "popcorn.fill")
+                                    Text("Log This Film")
+                                        .fontWeight(.semibold)
+                                }
+                                .foregroundStyle(.white)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 14)
+                                .background(PopcornTheme.warmRed, in: .rect(cornerRadius: 12))
+                            }
+
+                            Button {
+                                if isOnWatchlist {
+                                    viewModel.removeFromWatchlist(film)
+                                } else {
+                                    viewModel.addToWatchlist(film)
+                                }
+                            } label: {
+                                HStack {
+                                    Image(systemName: isOnWatchlist ? "bookmark.fill" : "bookmark")
+                                    Text(isOnWatchlist ? "On Watchlist" : "Add to Watchlist")
+                                        .fontWeight(.medium)
+                                }
+                                .foregroundStyle(isOnWatchlist ? .white : PopcornTheme.darkBrown)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 14)
+                                .background(
+                                    isOnWatchlist ? PopcornTheme.freshGreen : Color.white,
+                                    in: .rect(cornerRadius: 12)
+                                )
+                                .overlay {
+                                    if !isOnWatchlist {
+                                        RoundedRectangle(cornerRadius: 12)
+                                            .stroke(PopcornTheme.sepiaBrown.opacity(0.2), lineWidth: 1)
+                                    }
+                                }
+                            }
+                            .sensoryFeedback(.impact(weight: .light), trigger: isOnWatchlist)
+                        }
+                        .padding(.horizontal)
+
+                        if !buddyReviews.isEmpty {
+                            VStack(alignment: .leading, spacing: 10) {
+                                Text("Buddy Reviews")
+                                    .font(.headline)
+                                    .foregroundStyle(PopcornTheme.darkBrown)
+                                    .padding(.horizontal)
+
+                                ForEach(buddyReviews) { entry in
+                                    HStack(alignment: .top, spacing: 10) {
+                                        AvatarView(name: "avatar_2", size: 32)
+                                        VStack(alignment: .leading, spacing: 4) {
+                                            Text(entry.username)
+                                                .font(.subheadline.weight(.medium))
+                                                .foregroundStyle(PopcornTheme.darkBrown)
+                                            PopcornRatingDisplay(rating: entry.rating, isGoldenPopcorn: entry.isGoldenPopcorn)
+                                            if !entry.review.isEmpty {
+                                                Text(entry.review)
+                                                    .font(.caption)
+                                                    .foregroundStyle(PopcornTheme.sepiaBrown)
+                                            }
+                                        }
+                                    }
+                                    .padding(10)
+                                    .background(Color.white, in: .rect(cornerRadius: 10))
+                                    .padding(.horizontal)
+                                }
                             }
                         }
                     }
+                    .padding(.bottom, 20)
                 }
-                .padding(.bottom, 20)
             }
             .background(PopcornTheme.cream.ignoresSafeArea())
             .navigationBarTitleDisplayMode(.inline)

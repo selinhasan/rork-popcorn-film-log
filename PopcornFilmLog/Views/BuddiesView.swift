@@ -250,6 +250,53 @@ struct PostCard: View {
                     .foregroundStyle(PopcornTheme.darkBrown)
             }
 
+            if let film = post.mentionedFilm {
+                HStack(spacing: 10) {
+                    Color(PopcornTheme.sepiaBrown.opacity(0.15))
+                        .frame(width: 40, height: 56)
+                        .overlay {
+                            AsyncImage(url: URL(string: film.posterURL)) { phase in
+                                if let image = phase.image {
+                                    image.resizable().aspectRatio(contentMode: .fill)
+                                }
+                            }
+                            .allowsHitTesting(false)
+                        }
+                        .clipShape(.rect(cornerRadius: 4))
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(film.title)
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(PopcornTheme.darkBrown)
+                        Text(film.year)
+                            .font(.caption2)
+                            .foregroundStyle(PopcornTheme.subtleGray)
+                    }
+                }
+                .padding(8)
+                .background(PopcornTheme.cream, in: .rect(cornerRadius: 8))
+            }
+
+            if !post.photoURLs.isEmpty {
+                ScrollView(.horizontal) {
+                    HStack(spacing: 8) {
+                        ForEach(post.photoURLs, id: \.self) { urlStr in
+                            Color(PopcornTheme.sepiaBrown.opacity(0.15))
+                                .frame(width: 160, height: 120)
+                                .overlay {
+                                    AsyncImage(url: URL(string: urlStr)) { phase in
+                                        if let image = phase.image {
+                                            image.resizable().aspectRatio(contentMode: .fill)
+                                        }
+                                    }
+                                    .allowsHitTesting(false)
+                                }
+                                .clipShape(.rect(cornerRadius: 10))
+                        }
+                    }
+                }
+                .scrollIndicators(.hidden)
+            }
+
             HStack(spacing: 20) {
                 Button {
                     viewModel.togglePostLike(post)
@@ -380,16 +427,170 @@ struct NewPostSheet: View {
     @Environment(AppViewModel.self) private var viewModel
     @Environment(\.dismiss) private var dismiss
     @State private var postText = ""
+    @State private var photoURL = ""
+    @State private var photoURLs: [String] = []
+    @State private var showFilmPicker = false
+    @State private var mentionedFilm: Film?
+    @State private var filmSearchText = ""
     @FocusState private var isFocused: Bool
+
+    private var searchedFilms: [Film] {
+        if filmSearchText.isEmpty { return MockDataService.popularFilms.prefix(8).map { $0 } }
+        return MockDataService.allContent.filter {
+            $0.title.localizedCaseInsensitiveContains(filmSearchText)
+        }
+    }
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: 16) {
-                TextField("What's on your mind?", text: $postText, axis: .vertical)
-                    .lineLimit(3...10)
-                    .focused($isFocused)
-                    .padding()
-                Spacer()
+            VStack(spacing: 0) {
+                ScrollView {
+                    VStack(spacing: 16) {
+                        TextField("What's on your mind?", text: $postText, axis: .vertical)
+                            .lineLimit(3...10)
+                            .focused($isFocused)
+                            .padding()
+
+                        if let film = mentionedFilm {
+                            HStack(spacing: 10) {
+                                Color(PopcornTheme.sepiaBrown.opacity(0.15))
+                                    .frame(width: 36, height: 50)
+                                    .overlay {
+                                        AsyncImage(url: URL(string: film.posterURL)) { phase in
+                                            if let image = phase.image {
+                                                image.resizable().aspectRatio(contentMode: .fill)
+                                            }
+                                        }
+                                        .allowsHitTesting(false)
+                                    }
+                                    .clipShape(.rect(cornerRadius: 4))
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(film.title)
+                                        .font(.subheadline.weight(.medium))
+                                        .foregroundStyle(PopcornTheme.darkBrown)
+                                    Text(film.year)
+                                        .font(.caption)
+                                        .foregroundStyle(PopcornTheme.subtleGray)
+                                }
+                                Spacer()
+                                Button {
+                                    mentionedFilm = nil
+                                } label: {
+                                    Image(systemName: "xmark.circle.fill")
+                                        .foregroundStyle(PopcornTheme.subtleGray)
+                                }
+                            }
+                            .padding(.horizontal)
+                        }
+
+                        if !photoURLs.isEmpty {
+                            ScrollView(.horizontal) {
+                                HStack(spacing: 8) {
+                                    ForEach(Array(photoURLs.enumerated()), id: \.offset) { idx, url in
+                                        ZStack(alignment: .topTrailing) {
+                                            Color(PopcornTheme.sepiaBrown.opacity(0.15))
+                                                .frame(width: 80, height: 80)
+                                                .overlay {
+                                                    AsyncImage(url: URL(string: url)) { phase in
+                                                        if let image = phase.image {
+                                                            image.resizable().aspectRatio(contentMode: .fill)
+                                                        }
+                                                    }
+                                                    .allowsHitTesting(false)
+                                                }
+                                                .clipShape(.rect(cornerRadius: 8))
+                                            Button {
+                                                photoURLs.remove(at: idx)
+                                            } label: {
+                                                Image(systemName: "xmark.circle.fill")
+                                                    .font(.caption)
+                                                    .foregroundStyle(.white)
+                                                    .background(Color.black.opacity(0.5), in: Circle())
+                                            }
+                                            .offset(x: 4, y: -4)
+                                        }
+                                    }
+                                }
+                            }
+                            .contentMargins(.horizontal, 16)
+                            .scrollIndicators(.hidden)
+                        }
+
+                        if showFilmPicker {
+                            VStack(alignment: .leading, spacing: 8) {
+                                HStack(spacing: 8) {
+                                    Image(systemName: "magnifyingglass")
+                                        .foregroundStyle(PopcornTheme.subtleGray)
+                                    TextField("Search for a film...", text: $filmSearchText)
+                                        .font(.subheadline)
+                                        .autocorrectionDisabled()
+                                }
+                                .padding(10)
+                                .background(Color.white, in: .rect(cornerRadius: 8))
+                                .padding(.horizontal)
+
+                                ForEach(searchedFilms.prefix(5)) { film in
+                                    Button {
+                                        mentionedFilm = film
+                                        showFilmPicker = false
+                                        filmSearchText = ""
+                                    } label: {
+                                        HStack(spacing: 10) {
+                                            Color(PopcornTheme.sepiaBrown.opacity(0.15))
+                                                .frame(width: 30, height: 42)
+                                                .overlay {
+                                                    AsyncImage(url: URL(string: film.posterURL)) { phase in
+                                                        if let image = phase.image {
+                                                            image.resizable().aspectRatio(contentMode: .fill)
+                                                        }
+                                                    }
+                                                    .allowsHitTesting(false)
+                                                }
+                                                .clipShape(.rect(cornerRadius: 3))
+                                            Text(film.title)
+                                                .font(.subheadline)
+                                                .foregroundStyle(PopcornTheme.darkBrown)
+                                            Spacer()
+                                        }
+                                        .padding(.horizontal)
+                                    }
+                                }
+                            }
+                        }
+
+                        Spacer()
+                    }
+                }
+
+                Divider()
+                HStack(spacing: 16) {
+                    Button {
+                        withAnimation(.spring(duration: 0.25)) {
+                            showFilmPicker.toggle()
+                        }
+                    } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: "film.fill")
+                            Image(systemName: "plus")
+                                .font(.caption2)
+                        }
+                        .font(.body)
+                        .foregroundStyle(mentionedFilm != nil ? PopcornTheme.warmRed : PopcornTheme.sepiaBrown)
+                    }
+
+                    Button {
+                        addPhotoPrompt()
+                    } label: {
+                        Image(systemName: "photo.on.rectangle.angled")
+                            .font(.body)
+                            .foregroundStyle(PopcornTheme.sepiaBrown)
+                    }
+
+                    Spacer()
+                }
+                .padding(.horizontal)
+                .padding(.vertical, 10)
+                .background(Color.white)
             }
             .background(PopcornTheme.cream.ignoresSafeArea())
             .navigationTitle("New Post")
@@ -401,7 +602,7 @@ struct NewPostSheet: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Post") {
-                        viewModel.createPost(text: postText)
+                        viewModel.createPost(text: postText, photoURLs: photoURLs, mentionedFilm: mentionedFilm)
                         dismiss()
                     }
                     .fontWeight(.semibold)
@@ -411,5 +612,9 @@ struct NewPostSheet: View {
             }
             .onAppear { isFocused = true }
         }
+    }
+
+    private func addPhotoPrompt() {
+        photoURLs.append("https://picsum.photos/400/300?random=\(Int.random(in: 1...1000))")
     }
 }
