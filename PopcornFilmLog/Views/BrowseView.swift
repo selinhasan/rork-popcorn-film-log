@@ -214,6 +214,10 @@ struct FilmDetailSheet: View {
         viewModel.buddyLogs.filter { $0.film.id == film.id }
     }
 
+    var isOnWatchlist: Bool {
+        viewModel.isInWatchlist(film)
+    }
+
     var body: some View {
         NavigationStack {
             ScrollView {
@@ -278,18 +282,48 @@ struct FilmDetailSheet: View {
                             .padding(.horizontal)
                     }
 
-                    Button {
-                        showLogSheet = true
-                    } label: {
-                        HStack {
-                            Image(systemName: "popcorn.fill")
-                            Text("Log This Film")
-                                .fontWeight(.semibold)
+                    VStack(spacing: 10) {
+                        Button {
+                            showLogSheet = true
+                        } label: {
+                            HStack {
+                                Image(systemName: "popcorn.fill")
+                                Text("Log This Film")
+                                    .fontWeight(.semibold)
+                            }
+                            .foregroundStyle(.white)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 14)
+                            .background(PopcornTheme.warmRed, in: .rect(cornerRadius: 12))
                         }
-                        .foregroundStyle(.white)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 14)
-                        .background(PopcornTheme.warmRed, in: .rect(cornerRadius: 12))
+
+                        Button {
+                            if isOnWatchlist {
+                                viewModel.removeFromWatchlist(film)
+                            } else {
+                                viewModel.addToWatchlist(film)
+                            }
+                        } label: {
+                            HStack {
+                                Image(systemName: isOnWatchlist ? "bookmark.fill" : "bookmark")
+                                Text(isOnWatchlist ? "On Watchlist" : "Add to Watchlist")
+                                    .fontWeight(.medium)
+                            }
+                            .foregroundStyle(isOnWatchlist ? .white : PopcornTheme.darkBrown)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 14)
+                            .background(
+                                isOnWatchlist ? PopcornTheme.freshGreen : Color.white,
+                                in: .rect(cornerRadius: 12)
+                            )
+                            .overlay {
+                                if !isOnWatchlist {
+                                    RoundedRectangle(cornerRadius: 12)
+                                        .stroke(PopcornTheme.sepiaBrown.opacity(0.2), lineWidth: 1)
+                                }
+                            }
+                        }
+                        .sensoryFeedback(.impact(weight: .light), trigger: isOnWatchlist)
                     }
                     .padding(.horizontal)
 
@@ -307,7 +341,7 @@ struct FilmDetailSheet: View {
                                         Text(entry.username)
                                             .font(.subheadline.weight(.medium))
                                             .foregroundStyle(PopcornTheme.darkBrown)
-                                        PopcornRatingDisplay(rating: entry.rating)
+                                        PopcornRatingDisplay(rating: entry.rating, isGoldenPopcorn: entry.isGoldenPopcorn)
                                         if !entry.review.isEmpty {
                                             Text(entry.review)
                                                 .font(.caption)
@@ -335,7 +369,7 @@ struct FilmDetailSheet: View {
         }
         .presentationDragIndicator(.visible)
         .sheet(isPresented: $showLogSheet) {
-            LogFilmView()
+            LogFilmView(preselectedFilm: film)
         }
     }
 }

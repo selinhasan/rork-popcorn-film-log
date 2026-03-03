@@ -23,7 +23,7 @@ struct ContentView: View {
                     BrowseView()
                 }
                 Tab("Profile", systemImage: "person.crop.circle.fill", value: 3) {
-                    ProfileSettingsView()
+                    ProfileView()
                 }
             }
             .tint(PopcornTheme.warmRed)

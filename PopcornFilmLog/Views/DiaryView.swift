@@ -8,6 +8,16 @@ struct DiaryView: View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 20) {
+                    HStack(spacing: 14) {
+                        PopcornLogoView(size: 36)
+                        Text("Popcorn")
+                            .font(.system(.title2, design: .rounded, weight: .bold))
+                            .foregroundStyle(PopcornTheme.darkBrown)
+                        Spacer()
+                    }
+                    .padding(.horizontal)
+                    .padding(.top, 4)
+
                     Button {
                         showLogSheet = true
                     } label: {
@@ -31,7 +41,6 @@ struct DiaryView: View {
                         .shadow(color: PopcornTheme.warmRed.opacity(0.3), radius: 12, y: 6)
                     }
                     .padding(.horizontal)
-                    .padding(.top, 8)
 
                     if viewModel.diaryEntries.isEmpty {
                         VStack(spacing: 16) {
@@ -60,7 +69,6 @@ struct DiaryView: View {
                 .padding(.bottom, 20)
             }
             .background(PopcornTheme.cream.ignoresSafeArea())
-            .navigationTitle("Film Diary")
             .sheet(isPresented: $showLogSheet) {
                 LogFilmView()
             }
@@ -102,6 +110,9 @@ struct DiaryEntryCard: View {
                             .padding(.vertical, 2)
                             .background(PopcornTheme.freshGreen, in: .capsule)
                     }
+                    if entry.isGoldenPopcorn {
+                        GoldenPopcornView(size: 14)
+                    }
                 }
 
                 if let ep = entry.episodeInfo, !ep.isEmpty {
@@ -110,7 +121,7 @@ struct DiaryEntryCard: View {
                         .foregroundStyle(PopcornTheme.sepiaBrown)
                 }
 
-                PopcornRatingDisplay(rating: entry.rating)
+                PopcornRatingDisplay(rating: entry.rating, isGoldenPopcorn: entry.isGoldenPopcorn)
 
                 if !entry.review.isEmpty {
                     Text(entry.review)

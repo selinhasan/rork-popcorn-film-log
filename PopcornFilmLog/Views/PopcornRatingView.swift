@@ -57,31 +57,58 @@ struct PopcornRatingView: View {
     }
 }
 
+struct GoldenPopcornView: View {
+    let size: CGFloat
+
+    var body: some View {
+        Image(systemName: "popcorn.fill")
+            .font(.system(size: size))
+            .foregroundStyle(
+                .linearGradient(
+                    colors: [
+                        Color(red: 1.0, green: 0.84, blue: 0.0),
+                        Color(red: 0.85, green: 0.65, blue: 0.13),
+                        Color(red: 1.0, green: 0.92, blue: 0.5),
+                        Color(red: 0.85, green: 0.65, blue: 0.13),
+                    ],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+            )
+            .shadow(color: Color(red: 1.0, green: 0.84, blue: 0.0).opacity(0.5), radius: 4, y: 2)
+    }
+}
+
 struct PopcornRatingDisplay: View {
     let rating: Double
+    var isGoldenPopcorn: Bool = false
 
     var body: some View {
         HStack(spacing: 2) {
-            ForEach(1...5, id: \.self) { index in
-                let value = Double(index)
-                if rating >= value {
-                    Image(systemName: "popcorn.fill")
-                        .foregroundStyle(PopcornTheme.popcornYellow)
-                } else if rating >= value - 0.5 {
-                    Image(systemName: "popcorn.fill")
-                        .foregroundStyle(
-                            .linearGradient(
-                                stops: [
-                                    .init(color: PopcornTheme.popcornYellow, location: 0.5),
-                                    .init(color: PopcornTheme.subtleGray.opacity(0.3), location: 0.5)
-                                ],
-                                startPoint: .leading,
-                                endPoint: .trailing
+            if isGoldenPopcorn {
+                GoldenPopcornView(size: 12)
+            } else {
+                ForEach(1...5, id: \.self) { index in
+                    let value = Double(index)
+                    if rating >= value {
+                        Image(systemName: "popcorn.fill")
+                            .foregroundStyle(PopcornTheme.popcornYellow)
+                    } else if rating >= value - 0.5 {
+                        Image(systemName: "popcorn.fill")
+                            .foregroundStyle(
+                                .linearGradient(
+                                    stops: [
+                                        .init(color: PopcornTheme.popcornYellow, location: 0.5),
+                                        .init(color: PopcornTheme.subtleGray.opacity(0.3), location: 0.5)
+                                    ],
+                                    startPoint: .leading,
+                                    endPoint: .trailing
+                                )
                             )
-                        )
-                } else {
-                    Image(systemName: "popcorn")
-                        .foregroundStyle(PopcornTheme.subtleGray.opacity(0.4))
+                    } else {
+                        Image(systemName: "popcorn")
+                            .foregroundStyle(PopcornTheme.subtleGray.opacity(0.4))
+                    }
                 }
             }
         }

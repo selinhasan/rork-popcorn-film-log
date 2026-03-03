@@ -1,11 +1,12 @@
 import SwiftUI
 
-struct ProfileSettingsView: View {
+struct SettingsView: View {
     @Environment(AppViewModel.self) private var viewModel
+    @Environment(\.dismiss) private var dismiss
     @State private var showEditProfile = false
-    @State private var showEditTopFive = false
     @State private var showImportSheet = false
     @State private var showLogoutAlert = false
+    @State private var showDeleteAlert = false
     @State private var notificationsEnabled = true
     @State private var soundEnabled = true
 
@@ -13,28 +14,21 @@ struct ProfileSettingsView: View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 24) {
-                    profileHeader
-                    topFiveSection
-                    statsSection
                     settingsSection
                 }
-                .padding(.bottom, 32)
+                .padding(.vertical, 16)
             }
             .background(PopcornTheme.cream.ignoresSafeArea())
-            .navigationTitle("Profile")
+            .navigationTitle("Settings")
+            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button("Edit", systemImage: "pencil") {
-                        showEditProfile = true
-                    }
-                    .foregroundStyle(PopcornTheme.sepiaBrown)
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { dismiss() }
+                        .foregroundStyle(PopcornTheme.sepiaBrown)
                 }
             }
             .sheet(isPresented: $showEditProfile) {
                 EditProfileSheet()
-            }
-            .sheet(isPresented: $showEditTopFive) {
-                EditTopFiveSheet()
             }
             .alert("Log Out", isPresented: $showLogoutAlert) {
                 Button("Log Out", role: .destructive) { viewModel.logOut() }
@@ -42,159 +36,42 @@ struct ProfileSettingsView: View {
             } message: {
                 Text("Are you sure you want to log out?")
             }
+            .alert("Delete Account", isPresented: $showDeleteAlert) {
+                Button("Delete", role: .destructive) { viewModel.deleteAccount() }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("This will permanently delete your account and all your data. This cannot be undone.")
+            }
             .alert("Import", isPresented: $showImportSheet) {
                 Button("OK") {}
             } message: {
-                Text("CSV import will be available when connected to a file source.")
+                Text("Import will be available when connected to a file source.")
             }
         }
-    }
-
-    private var profileHeader: some View {
-        VStack(spacing: 14) {
-            AvatarView(name: viewModel.currentUser?.profileImageName ?? "avatar_1", size: 90)
-                .shadow(color: PopcornTheme.sepiaBrown.opacity(0.2), radius: 10, y: 4)
-
-            Text(viewModel.currentUser?.username ?? "User")
-                .font(.title2.bold())
-                .foregroundStyle(PopcornTheme.darkBrown)
-
-            Text(viewModel.currentUser?.email ?? "")
-                .font(.subheadline)
-                .foregroundStyle(PopcornTheme.sepiaBrown)
-
-            Text("Joined \(viewModel.currentUser?.joinDate.formatted(date: .abbreviated, time: .omitted) ?? "")")
-                .font(.caption)
-                .foregroundStyle(PopcornTheme.subtleGray)
-        }
-        .padding(.top, 8)
-    }
-
-    private var topFiveSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Text("Top 5 Films")
-                    .font(.headline)
-                    .foregroundStyle(PopcornTheme.darkBrown)
-                Spacer()
-                Button("Edit") { showEditTopFive = true }
-                    .font(.subheadline)
-                    .foregroundStyle(PopcornTheme.warmRed)
-            }
-            .padding(.horizontal)
-
-            let topFive = viewModel.currentUser?.topFiveFilms ?? []
-            if topFive.isEmpty {
-                Button {
-                    showEditTopFive = true
-                } label: {
-                    HStack {
-                        Image(systemName: "plus.circle.fill")
-                            .foregroundStyle(PopcornTheme.warmRed)
-                        Text("Set your top 5 films")
-                            .foregroundStyle(PopcornTheme.sepiaBrown)
-                    }
-                    .font(.subheadline)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 20)
-                    .background(Color.white, in: .rect(cornerRadius: 12))
-                }
-                .padding(.horizontal)
-            } else {
-                ScrollView(.horizontal) {
-                    HStack(spacing: 10) {
-                        ForEach(Array(topFive.enumerated()), id: \.element.id) { index, film in
-                            VStack(spacing: 6) {
-                                Color(PopcornTheme.sepiaBrown.opacity(0.15))
-                                    .frame(width: 80, height: 115)
-                                    .overlay {
-                                        AsyncImage(url: URL(string: film.posterURL)) { phase in
-                                            if let image = phase.image {
-                                                image.resizable().aspectRatio(contentMode: .fill)
-                                            } else {
-                                                Image(systemName: "film")
-                                                    .foregroundStyle(PopcornTheme.sepiaBrown)
-                                            }
-                                        }
-                                        .allowsHitTesting(false)
-                                    }
-                                    .clipShape(.rect(cornerRadius: 8))
-                                    .overlay(alignment: .topLeading) {
-                                        Text("#\(index + 1)")
-                                            .font(.caption2.bold())
-                                            .foregroundStyle(.white)
-                                            .padding(.horizontal, 5)
-                                            .padding(.vertical, 2)
-                                            .background(PopcornTheme.warmRed, in: .rect(cornerRadius: 4))
-                                            .padding(4)
-                                    }
-
-                                Text(film.title)
-                                    .font(.caption2)
-                                    .foregroundStyle(PopcornTheme.darkBrown)
-                                    .lineLimit(1)
-                                    .frame(width: 80)
-                            }
-                        }
-                    }
-                }
-                .contentMargins(.horizontal, 16)
-                .scrollIndicators(.hidden)
-            }
-        }
-    }
-
-    private var statsSection: some View {
-        HStack(spacing: 12) {
-            statCard(value: "\(viewModel.diaryEntries.count)", label: "Films Logged", icon: "film.fill")
-            statCard(value: "\(viewModel.buddies.count)", label: "Buddies", icon: "person.2.fill")
-            let avg = viewModel.diaryEntries.isEmpty ? 0.0 : viewModel.diaryEntries.map(\.rating).reduce(0, +) / Double(viewModel.diaryEntries.count)
-            statCard(value: String(format: "%.1f", avg), label: "Avg Rating", icon: "popcorn.fill")
-        }
-        .padding(.horizontal)
-    }
-
-    private func statCard(value: String, label: String, icon: String) -> some View {
-        VStack(spacing: 8) {
-            Image(systemName: icon)
-                .font(.title3)
-                .foregroundStyle(PopcornTheme.popcornYellow)
-            Text(value)
-                .font(.title2.bold())
-                .foregroundStyle(PopcornTheme.darkBrown)
-            Text(label)
-                .font(.caption)
-                .foregroundStyle(PopcornTheme.sepiaBrown)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 16)
-        .background(Color.white, in: .rect(cornerRadius: 14))
-        .shadow(color: .black.opacity(0.03), radius: 6, y: 2)
     }
 
     private var settingsSection: some View {
         VStack(spacing: 0) {
-            Text("Settings")
-                .font(.headline)
-                .foregroundStyle(PopcornTheme.darkBrown)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal)
-                .padding(.bottom, 8)
-
             VStack(spacing: 1) {
+                Button {
+                    showEditProfile = true
+                } label: {
+                    settingsRow(icon: "person.crop.circle", title: "Edit Profile", showChevron: true)
+                }
+
                 settingsToggle(icon: "bell.fill", title: "Notifications", isOn: $notificationsEnabled)
                 settingsToggle(icon: "speaker.wave.2.fill", title: "Sound", isOn: $soundEnabled)
 
                 Button {
                     showImportSheet = true
                 } label: {
-                    settingsRow(icon: "square.and.arrow.down.fill", title: "Import Watch History", showChevron: true)
+                    settingsRow(icon: "text.badge.star", title: "Import from Letterboxd", showChevron: true)
                 }
 
                 Button {
-                    showEditProfile = true
+                    showImportSheet = true
                 } label: {
-                    settingsRow(icon: "person.crop.circle", title: "Edit Profile", showChevron: true)
+                    settingsRow(icon: "doc.badge.arrow.up", title: "Import from Spreadsheet", showChevron: true)
                 }
 
                 Button {
@@ -208,6 +85,24 @@ struct ProfileSettingsView: View {
                         Text("Log Out")
                             .font(.body)
                             .foregroundStyle(PopcornTheme.warmRed)
+                        Spacer()
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 14)
+                    .background(Color.white)
+                }
+
+                Button {
+                    showDeleteAlert = true
+                } label: {
+                    HStack(spacing: 12) {
+                        Image(systemName: "trash.fill")
+                            .font(.body)
+                            .foregroundStyle(.red)
+                            .frame(width: 28)
+                        Text("Delete Account")
+                            .font(.body)
+                            .foregroundStyle(.red)
                         Spacer()
                     }
                     .padding(.horizontal, 16)
@@ -265,7 +160,9 @@ struct EditProfileSheet: View {
     @Environment(AppViewModel.self) private var viewModel
     @Environment(\.dismiss) private var dismiss
     @State private var username = ""
+    @State private var bio = ""
     @State private var selectedAvatar = "avatar_1"
+    @State private var customImageURL = ""
     @State private var password = ""
     @State private var newPassword = ""
 
@@ -275,7 +172,7 @@ struct EditProfileSheet: View {
                 Section("Avatar") {
                     HStack {
                         Spacer()
-                        AvatarView(name: selectedAvatar, size: 80)
+                        AvatarView(name: selectedAvatar, size: 80, customURL: customImageURL.isEmpty ? nil : customImageURL)
                         Spacer()
                     }
                     .listRowBackground(Color.clear)
@@ -284,21 +181,30 @@ struct EditProfileSheet: View {
                         ForEach(MockDataService.defaultAvatars, id: \.self) { avatar in
                             Button {
                                 selectedAvatar = avatar
+                                customImageURL = ""
                             } label: {
                                 AvatarView(name: avatar, size: 44)
                                     .overlay {
-                                        if selectedAvatar == avatar {
+                                        if selectedAvatar == avatar && customImageURL.isEmpty {
                                             Circle().stroke(PopcornTheme.warmRed, lineWidth: 2)
                                         }
                                     }
                             }
                         }
                     }
+
+                    TextField("Or paste a profile picture URL", text: $customImageURL)
+                        .font(.caption)
+                        .keyboardType(.URL)
+                        .autocorrectionDisabled()
+                        .textInputAutocapitalization(.never)
                 }
 
                 Section("Profile") {
                     TextField("Username", text: $username)
                         .textContentType(.username)
+                    TextField("Bio", text: $bio, axis: .vertical)
+                        .lineLimit(2...4)
                 }
 
                 Section("Change Password") {
@@ -314,11 +220,12 @@ struct EditProfileSheet: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") {
-                        if !username.isEmpty {
-                            viewModel.updateProfile(username: username, profileImage: selectedAvatar)
-                        } else {
-                            viewModel.updateProfile(profileImage: selectedAvatar)
-                        }
+                        viewModel.updateProfile(
+                            username: username.isEmpty ? nil : username,
+                            profileImage: selectedAvatar,
+                            customImageURL: customImageURL.isEmpty ? nil : customImageURL,
+                            bio: bio
+                        )
                         dismiss()
                     }
                     .fontWeight(.semibold)
@@ -326,7 +233,9 @@ struct EditProfileSheet: View {
             }
             .onAppear {
                 username = viewModel.currentUser?.username ?? ""
+                bio = viewModel.currentUser?.bio ?? ""
                 selectedAvatar = viewModel.currentUser?.profileImageName ?? "avatar_1"
+                customImageURL = viewModel.currentUser?.customProfileImageURL ?? ""
             }
         }
     }
@@ -336,6 +245,7 @@ struct EditTopFiveSheet: View {
     @Environment(AppViewModel.self) private var viewModel
     @Environment(\.dismiss) private var dismiss
     @State private var topFive: [Film] = []
+    @State private var searchText = ""
 
     var body: some View {
         NavigationStack {
@@ -351,6 +261,23 @@ struct EditTopFiveSheet: View {
                                     .font(.headline)
                                     .foregroundStyle(PopcornTheme.warmRed)
                                     .frame(width: 30)
+
+                                Color(PopcornTheme.sepiaBrown.opacity(0.15))
+                                    .frame(width: 36, height: 50)
+                                    .overlay {
+                                        AsyncImage(url: URL(string: film.posterURL)) { phase in
+                                            if let image = phase.image {
+                                                image.resizable().aspectRatio(contentMode: .fill)
+                                            } else {
+                                                Image(systemName: "film")
+                                                    .font(.caption2)
+                                                    .foregroundStyle(PopcornTheme.sepiaBrown)
+                                            }
+                                        }
+                                        .allowsHitTesting(false)
+                                    }
+                                    .clipShape(.rect(cornerRadius: 4))
+
                                 Text(film.title)
                                     .font(.subheadline)
                                 Spacer()
@@ -376,12 +303,30 @@ struct EditTopFiveSheet: View {
                                     topFive.append(film)
                                 }
                             } label: {
-                                HStack {
-                                    Text(film.title)
-                                        .foregroundStyle(PopcornTheme.darkBrown)
-                                    Text(film.year)
-                                        .font(.caption)
-                                        .foregroundStyle(PopcornTheme.subtleGray)
+                                HStack(spacing: 10) {
+                                    Color(PopcornTheme.sepiaBrown.opacity(0.15))
+                                        .frame(width: 36, height: 50)
+                                        .overlay {
+                                            AsyncImage(url: URL(string: film.posterURL)) { phase in
+                                                if let image = phase.image {
+                                                    image.resizable().aspectRatio(contentMode: .fill)
+                                                } else {
+                                                    Image(systemName: "film")
+                                                        .font(.caption2)
+                                                        .foregroundStyle(PopcornTheme.sepiaBrown)
+                                                }
+                                            }
+                                            .allowsHitTesting(false)
+                                        }
+                                        .clipShape(.rect(cornerRadius: 4))
+
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(film.title)
+                                            .foregroundStyle(PopcornTheme.darkBrown)
+                                        Text(film.year)
+                                            .font(.caption)
+                                            .foregroundStyle(PopcornTheme.subtleGray)
+                                    }
                                     Spacer()
                                     Image(systemName: "plus.circle.fill")
                                         .foregroundStyle(PopcornTheme.freshGreen)
@@ -391,6 +336,7 @@ struct EditTopFiveSheet: View {
                     }
                 }
             }
+            .searchable(text: $searchText, prompt: "Search films")
             .navigationTitle("Top 5 Films")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -412,8 +358,62 @@ struct EditTopFiveSheet: View {
     }
 
     private var availableFilms: [Film] {
-        MockDataService.popularFilms.filter { film in
-            !topFive.contains { $0.id == film.id }
+        let highestRated = viewModel.diaryEntries
+            .sorted { $0.rating > $1.rating }
+            .map(\.film)
+            .filter { film in !topFive.contains { $0.id == film.id } }
+
+        let popular = MockDataService.popularFilms.filter { film in
+            !topFive.contains { $0.id == film.id } &&
+            !highestRated.contains { $0.id == film.id }
+        }
+
+        var combined = highestRated + popular
+
+        if !searchText.isEmpty {
+            combined = combined.filter { $0.title.localizedCaseInsensitiveContains(searchText) }
+        }
+
+        return Array(combined.prefix(15))
+    }
+}
+
+struct CreateListSheet: View {
+    @Environment(AppViewModel.self) private var viewModel
+    @Environment(\.dismiss) private var dismiss
+    @State private var name = ""
+    @State private var description = ""
+    @State private var isPublic = true
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    TextField("List Name", text: $name)
+                    TextField("Description (optional)", text: $description, axis: .vertical)
+                        .lineLimit(2...4)
+                }
+
+                Section {
+                    Toggle("Public", isOn: $isPublic)
+                        .tint(PopcornTheme.freshGreen)
+                }
+            }
+            .navigationTitle("New List")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Create") {
+                        viewModel.createList(name: name, description: description, isPublic: isPublic)
+                        dismiss()
+                    }
+                    .fontWeight(.semibold)
+                    .disabled(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                }
+            }
         }
     }
 }

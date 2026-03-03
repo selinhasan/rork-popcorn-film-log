@@ -10,18 +10,19 @@ struct BuddiesView: View {
         NavigationStack {
             VStack(spacing: 0) {
                 Picker("View", selection: $selectedSegment) {
-                    Text("Activity").tag(0)
-                    Text("Posts").tag(1)
+                    Text("All").tag(0)
+                    Text("Activity").tag(1)
+                    Text("Posts").tag(2)
                 }
                 .pickerStyle(.segmented)
                 .padding(.horizontal)
                 .padding(.vertical, 8)
 
                 ScrollView {
-                    if selectedSegment == 0 {
-                        activityFeed
-                    } else {
-                        postsFeed
+                    switch selectedSegment {
+                    case 0: allFeed
+                    case 1: activityFeed
+                    default: postsFeed
                     }
                 }
             }
@@ -30,7 +31,7 @@ struct BuddiesView: View {
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     HStack(spacing: 12) {
-                        if selectedSegment == 1 {
+                        if selectedSegment == 0 || selectedSegment == 2 {
                             Button("New Post", systemImage: "square.and.pencil") {
                                 showNewPost = true
                             }
@@ -50,6 +51,27 @@ struct BuddiesView: View {
                 NewPostSheet()
             }
         }
+    }
+
+    private var allFeed: some View {
+        LazyVStack(spacing: 12) {
+            let combined = allItems
+            if combined.isEmpty {
+                emptyState(icon: "person.2", title: "Nothing here yet", subtitle: "Add some buddies to see what they're up to!")
+            } else {
+                ForEach(combined) { item in
+                    switch item.content {
+                    case .log(let entry):
+                        BuddyLogCard(entry: entry)
+                    case .post(let post):
+                        PostCard(post: post)
+                    }
+                }
+            }
+        }
+        .padding(.horizontal)
+        .padding(.top, 8)
+        .padding(.bottom, 20)
     }
 
     private var activityFeed: some View {
@@ -82,6 +104,17 @@ struct BuddiesView: View {
         .padding(.bottom, 20)
     }
 
+    private var allItems: [FeedItem] {
+        var items: [FeedItem] = []
+        for entry in viewModel.buddyLogs {
+            items.append(FeedItem(date: entry.dateWatched, content: .log(entry)))
+        }
+        for post in viewModel.posts {
+            items.append(FeedItem(date: post.date, content: .post(post)))
+        }
+        return items.sorted { $0.date > $1.date }
+    }
+
     private func emptyState(icon: String, title: String, subtitle: String) -> some View {
         VStack(spacing: 16) {
             Image(systemName: icon)
@@ -97,6 +130,17 @@ struct BuddiesView: View {
         }
         .padding(.top, 60)
         .padding(.horizontal, 32)
+    }
+}
+
+struct FeedItem: Identifiable {
+    let id = UUID()
+    let date: Date
+    let content: FeedContent
+
+    enum FeedContent {
+        case log(LogEntry)
+        case post(BuddyPost)
     }
 }
 
@@ -142,7 +186,7 @@ struct BuddyLogCard: View {
                         .font(.headline)
                         .foregroundStyle(PopcornTheme.darkBrown)
                         .lineLimit(1)
-                    PopcornRatingDisplay(rating: entry.rating)
+                    PopcornRatingDisplay(rating: entry.rating, isGoldenPopcorn: entry.isGoldenPopcorn)
                     if !entry.review.isEmpty {
                         Text(entry.review)
                             .font(.caption)
@@ -179,9 +223,32 @@ struct PostCard: View {
                 Spacer()
             }
 
-            Text(post.text)
-                .font(.body)
-                .foregroundStyle(PopcornTheme.darkBrown)
+            if post.postType == .watchlistAdd, let film = post.relatedFilm {
+                HStack(spacing: 10) {
+                    Color(PopcornTheme.sepiaBrown.opacity(0.15))
+                        .frame(width: 40, height: 56)
+                        .overlay {
+                            AsyncImage(url: URL(string: film.posterURL)) { phase in
+                                if let image = phase.image {
+                                    image.resizable().aspectRatio(contentMode: .fill)
+                                } else {
+                                    Image(systemName: "film")
+                                        .font(.caption)
+                                        .foregroundStyle(PopcornTheme.sepiaBrown)
+                                }
+                            }
+                            .allowsHitTesting(false)
+                        }
+                        .clipShape(.rect(cornerRadius: 4))
+                    Text(post.text)
+                        .font(.subheadline)
+                        .foregroundStyle(PopcornTheme.sepiaBrown)
+                }
+            } else {
+                Text(post.text)
+                    .font(.body)
+                    .foregroundStyle(PopcornTheme.darkBrown)
+            }
 
             HStack(spacing: 20) {
                 Button {

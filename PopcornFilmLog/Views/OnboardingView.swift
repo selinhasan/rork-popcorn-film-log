@@ -6,6 +6,7 @@ struct OnboardingView: View {
     @State private var selectedAvatar = "avatar_1"
     @State private var topFiveFilms: [Film] = []
     @State private var showImportSheet = false
+    @State private var filmSearchText = ""
 
     var body: some View {
         VStack(spacing: 0) {
@@ -81,6 +82,10 @@ struct OnboardingView: View {
             }
             .padding(.horizontal, 32)
 
+            Text("You can upload a custom photo later in settings")
+                .font(.caption)
+                .foregroundStyle(PopcornTheme.subtleGray)
+
             Spacer()
         }
     }
@@ -98,6 +103,22 @@ struct OnboardingView: View {
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 32)
 
+            HStack(spacing: 10) {
+                Image(systemName: "magnifyingglass")
+                    .foregroundStyle(PopcornTheme.sepiaBrown)
+                TextField("Search for a film...", text: $filmSearchText)
+                    .autocorrectionDisabled()
+                if !filmSearchText.isEmpty {
+                    Button { filmSearchText = "" } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundStyle(PopcornTheme.subtleGray)
+                    }
+                }
+            }
+            .padding(10)
+            .background(Color.white, in: .rect(cornerRadius: 10))
+            .padding(.horizontal)
+
             ScrollView {
                 VStack(spacing: 8) {
                     ForEach(0..<5, id: \.self) { index in
@@ -112,7 +133,7 @@ struct OnboardingView: View {
 
                 if topFiveFilms.count < 5 {
                     VStack(spacing: 8) {
-                        Text("Quick picks")
+                        Text(filmSearchText.isEmpty ? "Quick picks" : "Results")
                             .font(.headline)
                             .foregroundStyle(PopcornTheme.darkBrown)
                             .frame(maxWidth: .infinity, alignment: .leading)
@@ -170,16 +191,54 @@ struct OnboardingView: View {
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 32)
 
-            Button {
-                showImportSheet = true
-            } label: {
-                Label("Import from CSV", systemImage: "doc.badge.arrow.up")
-                    .font(.headline)
+            VStack(spacing: 12) {
+                Button {
+                    showImportSheet = true
+                } label: {
+                    HStack(spacing: 10) {
+                        Image(systemName: "text.badge.star")
+                            .font(.title3)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Import from Letterboxd")
+                                .font(.subheadline.weight(.semibold))
+                            Text("Upload your Letterboxd CSV export")
+                                .font(.caption)
+                                .foregroundStyle(.white.opacity(0.8))
+                        }
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                    }
                     .foregroundStyle(.white)
-                    .padding(.vertical, 14)
-                    .padding(.horizontal, 32)
+                    .padding(14)
                     .background(PopcornTheme.sepiaBrown, in: .rect(cornerRadius: 12))
+                }
+
+                Button {
+                    showImportSheet = true
+                } label: {
+                    HStack(spacing: 10) {
+                        Image(systemName: "doc.badge.arrow.up")
+                            .font(.title3)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Import from Spreadsheet")
+                                .font(.subheadline.weight(.semibold))
+                            Text("Upload a CSV or Excel file")
+                                .font(.caption)
+                                .foregroundStyle(PopcornTheme.sepiaBrown.opacity(0.7))
+                        }
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                    }
+                    .foregroundStyle(PopcornTheme.darkBrown)
+                    .padding(14)
+                    .background(Color.white, in: .rect(cornerRadius: 12))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12)
+                            .stroke(PopcornTheme.sepiaBrown.opacity(0.2), lineWidth: 1)
+                    )
+                }
             }
+            .padding(.horizontal, 24)
 
             Text("You can also do this later in Settings")
                 .font(.caption)
@@ -190,7 +249,7 @@ struct OnboardingView: View {
         .alert("Import", isPresented: $showImportSheet) {
             Button("OK") {}
         } message: {
-            Text("CSV import will be available when connected to a file source. You can import your watch history anytime from Settings.")
+            Text("Import will be available when connected to a file source. You can import your watch history anytime from Settings.")
         }
     }
 
@@ -230,9 +289,17 @@ struct OnboardingView: View {
     }
 
     private var suggestedFilms: [Film] {
-        MockDataService.popularFilms.filter { film in
+        let base = MockDataService.popularFilms.filter { film in
             !topFiveFilms.contains(where: { $0.id == film.id })
-        }.prefix(8).map { $0 }
+        }
+        if filmSearchText.isEmpty {
+            return Array(base.prefix(8))
+        }
+        let searched = MockDataService.allContent.filter { film in
+            !topFiveFilms.contains(where: { $0.id == film.id }) &&
+            film.title.localizedCaseInsensitiveContains(filmSearchText)
+        }
+        return Array(searched.prefix(10))
     }
 
     private func selectedFilmRow(_ film: Film, index: Int) -> some View {

@@ -9,7 +9,12 @@ struct LogFilmView: View {
     @State private var review = ""
     @State private var episodeInfo = ""
     @State private var showTVField = false
+    @State private var isGoldenPopcorn = false
+    @State private var showGoldenConfirm = false
+    @State private var selectedListId: String?
     @FocusState private var searchFocused: Bool
+
+    var preselectedFilm: Film? = nil
 
     private var filteredFilms: [Film] {
         if searchText.isEmpty {
@@ -50,6 +55,27 @@ struct LogFilmView: View {
         }
         .presentationDetents([.large])
         .presentationDragIndicator(.visible)
+        .onAppear {
+            if let film = preselectedFilm {
+                selectedFilm = film
+                showTVField = film.isTV
+            }
+        }
+        .alert("Golden Popcorn", isPresented: $showGoldenConfirm) {
+            Button("Give Golden Popcorn", role: .destructive) {
+                isGoldenPopcorn = true
+            }
+            Button("Cancel", role: .cancel) {
+                isGoldenPopcorn = false
+            }
+        } message: {
+            if let currentGolden = viewModel.currentUser?.goldenPopcornFilmId,
+               let film = viewModel.diaryEntries.first(where: { $0.film.id == currentGolden })?.film {
+                Text("This will remove the Golden Popcorn from \(film.title) and reduce it to 5 popcorns. Are you sure?")
+            } else {
+                Text("You can only give the Golden Popcorn to one film ever. Are you sure?")
+            }
+        }
     }
 
     private var searchView: some View {
@@ -206,21 +232,6 @@ struct LogFilmView: View {
                         .multilineTextAlignment(.center)
                 }
 
-                ScrollView(.horizontal) {
-                    HStack(spacing: 6) {
-                        ForEach(film.genre, id: \.self) { genre in
-                            Text(genre)
-                                .font(.caption.weight(.medium))
-                                .foregroundStyle(PopcornTheme.darkBrown)
-                                .padding(.horizontal, 10)
-                                .padding(.vertical, 5)
-                                .background(PopcornTheme.popcornYellow.opacity(0.3), in: .capsule)
-                        }
-                    }
-                }
-                .contentMargins(.horizontal, 16)
-                .scrollIndicators(.hidden)
-
                 VStack(spacing: 12) {
                     Text("Your Rating")
                         .font(.headline)
@@ -231,6 +242,38 @@ struct LogFilmView: View {
                     Text(ratingLabel)
                         .font(.subheadline)
                         .foregroundStyle(PopcornTheme.sepiaBrown)
+
+                    Button {
+                        if viewModel.currentUser?.goldenPopcornFilmId != nil {
+                            showGoldenConfirm = true
+                        } else {
+                            isGoldenPopcorn = true
+                        }
+                    } label: {
+                        HStack(spacing: 8) {
+                            GoldenPopcornView(size: 20)
+                            Text(isGoldenPopcorn ? "Golden Popcorn!" : "Award Golden Popcorn")
+                                .font(.subheadline.weight(.medium))
+                                .foregroundStyle(isGoldenPopcorn ? Color(red: 0.85, green: 0.65, blue: 0.13) : PopcornTheme.sepiaBrown)
+                        }
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 10)
+                        .background(
+                            isGoldenPopcorn
+                                ? Color(red: 1.0, green: 0.95, blue: 0.8)
+                                : Color.white,
+                            in: .capsule
+                        )
+                        .overlay {
+                            Capsule()
+                                .stroke(
+                                    isGoldenPopcorn
+                                        ? Color(red: 0.85, green: 0.65, blue: 0.13).opacity(0.5)
+                                        : PopcornTheme.sepiaBrown.opacity(0.2),
+                                    lineWidth: 1
+                                )
+                        }
+                    }
                 }
                 .padding(.vertical, 8)
 
@@ -257,6 +300,43 @@ struct LogFilmView: View {
                 }
                 .padding(.horizontal)
 
+                if !viewModel.filmLists.isEmpty {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Add to List")
+                            .font(.headline)
+                            .foregroundStyle(PopcornTheme.darkBrown)
+
+                        ScrollView(.horizontal) {
+                            HStack(spacing: 8) {
+                                ForEach(viewModel.filmLists) { list in
+                                    Button {
+                                        selectedListId = selectedListId == list.id ? nil : list.id
+                                    } label: {
+                                        Text(list.name)
+                                            .font(.subheadline.weight(.medium))
+                                            .foregroundStyle(selectedListId == list.id ? .white : PopcornTheme.darkBrown)
+                                            .padding(.horizontal, 14)
+                                            .padding(.vertical, 8)
+                                            .background(
+                                                selectedListId == list.id ? PopcornTheme.warmRed : Color.white,
+                                                in: .capsule
+                                            )
+                                            .overlay {
+                                                if selectedListId != list.id {
+                                                    Capsule()
+                                                        .stroke(PopcornTheme.sepiaBrown.opacity(0.2), lineWidth: 1)
+                                                }
+                                            }
+                                    }
+                                }
+                            }
+                        }
+                        .contentMargins(.horizontal, 0)
+                        .scrollIndicators(.hidden)
+                    }
+                    .padding(.horizontal)
+                }
+
                 Spacer().frame(height: 20)
             }
         }
@@ -274,7 +354,7 @@ struct LogFilmView: View {
 
     private func saveLog() {
         guard let film = selectedFilm else { return }
-        viewModel.logFilm(film, rating: rating, review: review, episodeInfo: showTVField ? episodeInfo : nil)
+        viewModel.logFilm(film, rating: rating, review: review, episodeInfo: showTVField ? episodeInfo : nil, isGoldenPopcorn: isGoldenPopcorn, listId: selectedListId)
         dismiss()
     }
 }
