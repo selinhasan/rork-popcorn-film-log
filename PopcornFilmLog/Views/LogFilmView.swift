@@ -255,7 +255,12 @@ struct LogFilmView: View {
                                 .font(.headline)
                                 .foregroundStyle(PopcornTheme.darkBrown)
 
-                            PopcornRatingView(rating: $rating, interactive: !isGoldenPopcorn)
+                            PopcornRatingView(rating: Binding(get: { rating }, set: { newValue in
+                                if isGoldenPopcorn && newValue < 5.0 {
+                                    isGoldenPopcorn = false
+                                }
+                                rating = newValue
+                            }), interactive: true)
 
                             Text(ratingLabel)
                                 .font(.subheadline)
