@@ -221,14 +221,7 @@ struct DiaryEntryCard: View {
                 }
 
                 HStack(spacing: 4) {
-                    if entry.isGoldenPopcorn {
-                        GoldenPopcornView(size: 12)
-                        Text("Golden Popcorn")
-                            .font(.caption2.weight(.medium))
-                            .foregroundStyle(Color(red: 0.85, green: 0.65, blue: 0.13))
-                    } else {
-                        PopcornRatingDisplay(rating: entry.rating, isGoldenPopcorn: false)
-                    }
+                    PopcornRatingDisplay(rating: entry.rating, isGoldenPopcorn: entry.isGoldenPopcorn)
                 }
 
                 if !entry.review.isEmpty {

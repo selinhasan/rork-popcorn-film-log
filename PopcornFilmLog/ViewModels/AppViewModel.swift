@@ -65,7 +65,7 @@ class AppViewModel {
         UserDefaults.standard.set(true, forKey: "hasCompletedOnboarding")
     }
 
-    func logFilm(_ film: Film, rating: Double, review: String, episodeInfo: String? = nil, isGoldenPopcorn: Bool = false, listId: String? = nil) {
+    func logFilm(_ film: Film, rating: Double, review: String, episodeInfo: String? = nil, isGoldenPopcorn: Bool = false, listId: String? = nil, watchDate: Date = Date()) {
         if isGoldenPopcorn {
             for i in diaryEntries.indices {
                 diaryEntries[i].isGoldenPopcorn = false
@@ -78,6 +78,7 @@ class AppViewModel {
             rating: rating,
             isGoldenPopcorn: isGoldenPopcorn,
             review: review,
+            dateWatched: watchDate,
             userId: currentUser?.id ?? "",
             username: currentUser?.username ?? "",
             episodeInfo: episodeInfo

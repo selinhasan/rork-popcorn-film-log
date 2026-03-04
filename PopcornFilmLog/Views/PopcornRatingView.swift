@@ -87,9 +87,10 @@ struct PopcornRatingDisplay: View {
         HStack(spacing: 2) {
             if isGoldenPopcorn {
                 GoldenPopcornView(size: 12)
-                Text("6/5")
-                    .font(.caption2.weight(.bold))
-                    .foregroundStyle(Color(red: 0.85, green: 0.65, blue: 0.13))
+                ForEach(1...5, id: \.self) { _ in
+                    Image(systemName: "popcorn.fill")
+                        .foregroundStyle(PopcornTheme.popcornYellow)
+                }
             } else {
                 ForEach(1...5, id: \.self) { index in
                     let value = Double(index)

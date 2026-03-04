@@ -12,6 +12,7 @@ struct LogFilmView: View {
     @State private var isGoldenPopcorn = false
     @State private var showGoldenConfirm = false
     @State private var selectedListId: String?
+    @State private var watchDate: Date = Date()
     @FocusState private var searchFocused: Bool
 
     var preselectedFilm: Film? = nil
@@ -55,6 +56,7 @@ struct LogFilmView: View {
         .alert("Golden Popcorn", isPresented: $showGoldenConfirm) {
             Button("Give Golden Popcorn", role: .destructive) {
                 isGoldenPopcorn = true
+                rating = 5.0
             }
             Button("Cancel", role: .cancel) {
                 isGoldenPopcorn = false
@@ -253,7 +255,7 @@ struct LogFilmView: View {
                                 .font(.headline)
                                 .foregroundStyle(PopcornTheme.darkBrown)
 
-                            PopcornRatingView(rating: $rating)
+                            PopcornRatingView(rating: $rating, interactive: !isGoldenPopcorn)
 
                             Text(ratingLabel)
                                 .font(.subheadline)
@@ -266,6 +268,7 @@ struct LogFilmView: View {
                                     showGoldenConfirm = true
                                 } else {
                                     isGoldenPopcorn = true
+                                    rating = 5.0
                                 }
                             } label: {
                                 HStack(spacing: 8) {
@@ -293,13 +296,20 @@ struct LogFilmView: View {
                                 }
                             }
 
-                            if isGoldenPopcorn {
-                                Text("Equivalent to 6 popcorns — your all-time favourite!")
-                                    .font(.caption)
-                                    .foregroundStyle(Color(red: 0.85, green: 0.65, blue: 0.13))
-                            }
+
                         }
                         .padding(.vertical, 8)
+
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Date Watched")
+                                .font(.headline)
+                                .foregroundStyle(PopcornTheme.darkBrown)
+                            DatePicker("Date", selection: $watchDate, in: ...Date(), displayedComponents: .date)
+                                .datePickerStyle(.compact)
+                                .labelsHidden()
+                                .tint(PopcornTheme.warmRed)
+                        }
+                        .padding(.horizontal)
 
                         if showTVField {
                             VStack(alignment: .leading, spacing: 8) {
@@ -396,7 +406,7 @@ struct LogFilmView: View {
     }
 
     private var ratingLabel: String {
-        if isGoldenPopcorn { return "Golden Popcorn — 6/5" }
+        if isGoldenPopcorn { return "Golden Popcorn — your all-time favourite!" }
         if rating == 0 { return "Tap to rate" }
         if rating <= 1 { return "Not great" }
         if rating <= 2 { return "Below average" }
@@ -407,8 +417,8 @@ struct LogFilmView: View {
 
     private func saveLog() {
         guard let film = selectedFilm else { return }
-        let effectiveRating = isGoldenPopcorn ? 6.0 : rating
-        viewModel.logFilm(film, rating: effectiveRating, review: review, episodeInfo: showTVField ? episodeInfo : nil, isGoldenPopcorn: isGoldenPopcorn, listId: selectedListId)
+        let effectiveRating = isGoldenPopcorn ? 5.0 : rating
+        viewModel.logFilm(film, rating: effectiveRating, review: review, episodeInfo: showTVField ? episodeInfo : nil, isGoldenPopcorn: isGoldenPopcorn, listId: selectedListId, watchDate: watchDate)
         dismiss()
     }
 }
