@@ -13,6 +13,7 @@ struct RandomFilmPickerView: View {
     @State private var spinFilm: Film?
     @State private var spinOffset: CGFloat = 0
     @State private var showResult = false
+    @State private var navigateToFilm: Film?
 
     enum FilmSource: String, CaseIterable {
         case watchlist = "My Watchlist"
@@ -178,6 +179,10 @@ struct RandomFilmPickerView: View {
                 }
             }
             .navigationBarTitleDisplayMode(.inline)
+            .sheet(item: $navigateToFilm) { film in
+                LogFilmView(preselectedFilm: film)
+                    .environment(viewModel)
+            }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Close") { dismiss() }
@@ -327,6 +332,9 @@ struct RandomFilmPickerView: View {
                 pickedFilm = chosen
                 showResult = true
             }
+
+            try? await Task.sleep(for: .seconds(0.3))
+            navigateToFilm = chosen
         }
     }
 }
