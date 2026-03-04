@@ -373,23 +373,26 @@ struct FilmDetailSheet: View {
                                     .padding(.horizontal)
 
                                 ForEach(buddyReviews) { entry in
-                                    HStack(alignment: .top, spacing: 10) {
-                                        AvatarView(name: "avatar_2", size: 32)
-                                        VStack(alignment: .leading, spacing: 4) {
-                                            Text(entry.username)
-                                                .font(.subheadline.weight(.medium))
-                                                .foregroundStyle(PopcornTheme.darkBrown)
-                                            PopcornRatingDisplay(rating: entry.rating, isGoldenPopcorn: entry.isGoldenPopcorn)
-                                            if !entry.review.isEmpty {
-                                                Text(entry.review)
-                                                    .font(.caption)
-                                                    .foregroundStyle(PopcornTheme.sepiaBrown)
+                                    NavigationLink(value: entry) {
+                                        HStack(alignment: .top, spacing: 10) {
+                                            AvatarView(name: "avatar_2", size: 32)
+                                            VStack(alignment: .leading, spacing: 4) {
+                                                Text(entry.username)
+                                                    .font(.subheadline.weight(.medium))
+                                                    .foregroundStyle(PopcornTheme.darkBrown)
+                                                PopcornRatingDisplay(rating: entry.rating, isGoldenPopcorn: entry.isGoldenPopcorn)
+                                                if !entry.review.isEmpty {
+                                                    Text(entry.review)
+                                                        .font(.caption)
+                                                        .foregroundStyle(PopcornTheme.sepiaBrown)
+                                                }
                                             }
                                         }
+                                        .padding(10)
+                                        .background(Color.white, in: .rect(cornerRadius: 10))
+                                        .padding(.horizontal)
                                     }
-                                    .padding(10)
-                                    .background(Color.white, in: .rect(cornerRadius: 10))
-                                    .padding(.horizontal)
+                                    .buttonStyle(.plain)
                                 }
                             }
                         }
@@ -407,6 +410,9 @@ struct FilmDetailSheet: View {
             }
         }
         .presentationDragIndicator(.visible)
+        .navigationDestination(for: LogEntry.self) { entry in
+            ReviewDetailView(entry: entry)
+        }
         .sheet(isPresented: $showLogSheet) {
             LogFilmView(preselectedFilm: film)
         }

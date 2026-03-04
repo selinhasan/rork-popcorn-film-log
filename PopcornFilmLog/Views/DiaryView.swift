@@ -127,6 +127,9 @@ struct DiaryView: View {
                 .padding(.bottom, 20)
             }
             .background(PopcornTheme.cream.ignoresSafeArea())
+            .navigationDestination(for: LogEntry.self) { entry in
+                ReviewDetailView(entry: entry)
+            }
             .sheet(isPresented: $showLogSheet) {
                 LogFilmView()
             }
@@ -165,7 +168,10 @@ struct DiaryDayRow: View {
 
             VStack(spacing: 8) {
                 ForEach(entries) { entry in
-                    DiaryEntryCard(entry: entry)
+                    NavigationLink(value: entry) {
+                        DiaryEntryCard(entry: entry)
+                    }
+                    .buttonStyle(.plain)
                 }
             }
         }

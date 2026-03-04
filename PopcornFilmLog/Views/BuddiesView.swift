@@ -44,6 +44,9 @@ struct BuddiesView: View {
                     }
                 }
             }
+            .navigationDestination(for: LogEntry.self) { entry in
+                ReviewDetailView(entry: entry)
+            }
             .sheet(isPresented: $showAddBuddy) {
                 AddBuddySheet()
             }
@@ -62,7 +65,10 @@ struct BuddiesView: View {
                 ForEach(combined) { item in
                     switch item.content {
                     case .log(let entry):
-                        BuddyLogCard(entry: entry)
+                        NavigationLink(value: entry) {
+                            BuddyLogCard(entry: entry)
+                        }
+                        .buttonStyle(.plain)
                     case .post(let post):
                         PostCard(post: post)
                     }
@@ -80,7 +86,10 @@ struct BuddiesView: View {
                 emptyState(icon: "person.2", title: "No buddy activity yet", subtitle: "Add some buddies to see what they're watching!")
             } else {
                 ForEach(viewModel.buddyLogs) { entry in
-                    BuddyLogCard(entry: entry)
+                    NavigationLink(value: entry) {
+                        BuddyLogCard(entry: entry)
+                    }
+                    .buttonStyle(.plain)
                 }
             }
         }
