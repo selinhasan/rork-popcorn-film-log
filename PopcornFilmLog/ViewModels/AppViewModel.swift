@@ -319,4 +319,86 @@ class AppViewModel {
         buddyLogs = MockDataService.sampleBuddyLogs
         posts = MockDataService.samplePosts
     }
+
+    var userStats: UserStats {
+        let films = diaryEntries.map(\.film)
+        let filmsWatched = diaryEntries.count
+
+        var totalMinutes = 0
+        for film in films {
+            totalMinutes += parseRuntime(film.runtime)
+        }
+
+        var actorCounts: [String: Int] = [:]
+        for film in films {
+            for actor in film.cast {
+                actorCounts[actor, default: 0] += 1
+            }
+        }
+        let topActors = actorCounts.sorted { $0.value > $1.value }.prefix(10).map {
+            ActorStat(id: $0.key, name: $0.key, count: $0.value)
+        }
+
+        var directorCounts: [String: Int] = [:]
+        for film in films {
+            let dir = film.director
+            guard !dir.isEmpty else { continue }
+            directorCounts[dir, default: 0] += 1
+        }
+        let topDirectors = directorCounts.sorted { $0.value > $1.value }.prefix(10).map {
+            DirectorStat(id: $0.key, name: $0.key, count: $0.value)
+        }
+
+        var genreCounts: [String: Int] = [:]
+        for film in films {
+            for genre in film.genre {
+                genreCounts[genre, default: 0] += 1
+            }
+        }
+        let topGenres = genreCounts.sorted { $0.value > $1.value }.prefix(10).map {
+            GenreStat(id: $0.key, name: $0.key, count: $0.value)
+        }
+
+        return UserStats(
+            filmsWatched: filmsWatched,
+            totalMinutes: totalMinutes,
+            topActors: Array(topActors),
+            topDirectors: Array(topDirectors),
+            topGenres: Array(topGenres)
+        )
+    }
+
+    private func parseRuntime(_ runtime: String) -> Int {
+        var minutes = 0
+        let lower = runtime.lowercased()
+        if let hRange = lower.range(of: "h") {
+            let hStr = lower[lower.startIndex..<hRange.lowerBound].trimmingCharacters(in: .whitespaces)
+            minutes += (Int(hStr) ?? 0) * 60
+        }
+        if let mRange = lower.range(of: "m") {
+            var start = lower.startIndex
+            if let hRange = lower.range(of: "h") {
+                start = hRange.upperBound
+            }
+            let mStr = lower[start..<mRange.lowerBound].trimmingCharacters(in: .whitespaces)
+            minutes += Int(mStr) ?? 0
+        }
+        if minutes == 0 {
+            minutes = Int(runtime) ?? 0
+        }
+        return minutes
+    }
+
+    func shareableListText(for list: FilmList) -> String {
+        var text = "\(list.name)\n"
+        if !list.description.isEmpty {
+            text += "\(list.description)\n"
+        }
+        text += "\n"
+        for (index, film) in list.films.enumerated() {
+            text += "\(index + 1). \(film.title) (\(film.year))\n"
+        }
+        text += "\nShared from Popcorn Film Log 🍿"
+        return text
+    }
 }

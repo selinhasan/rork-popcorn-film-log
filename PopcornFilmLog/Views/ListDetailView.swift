@@ -7,6 +7,7 @@ struct ListDetailView: View {
     @State private var showAddFilms = false
     @State private var showDeleteAlert = false
     @State private var selectedFilm: Film?
+    @State private var showShareSheet = false
 
     init(list: FilmList) {
         self._list = State(initialValue: list)
@@ -80,19 +81,25 @@ struct ListDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
-                Menu {
-                    Button { showAddFilms = true } label: {
-                        Label("Add Films", systemImage: "plus")
+                HStack(spacing: 12) {
+                    ShareLink(item: viewModel.shareableListText(for: list)) {
+                        Image(systemName: "square.and.arrow.up")
+                            .foregroundStyle(PopcornTheme.sepiaBrown)
                     }
-                    Button { showEditList = true } label: {
-                        Label("Edit List", systemImage: "pencil")
+                    Menu {
+                        Button { showAddFilms = true } label: {
+                            Label("Add Films", systemImage: "plus")
+                        }
+                        Button { showEditList = true } label: {
+                            Label("Edit List", systemImage: "pencil")
+                        }
+                        Button(role: .destructive) { showDeleteAlert = true } label: {
+                            Label("Delete List", systemImage: "trash")
+                        }
+                    } label: {
+                        Image(systemName: "ellipsis.circle")
+                            .foregroundStyle(PopcornTheme.sepiaBrown)
                     }
-                    Button(role: .destructive) { showDeleteAlert = true } label: {
-                        Label("Delete List", systemImage: "trash")
-                    }
-                } label: {
-                    Image(systemName: "ellipsis.circle")
-                        .foregroundStyle(PopcornTheme.sepiaBrown)
                 }
             }
         }

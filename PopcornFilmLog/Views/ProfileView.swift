@@ -315,14 +315,55 @@ struct ProfileView: View {
         }
     }
 
+    @State private var showFullStats = false
+
     private var statsSection: some View {
-        HStack(spacing: 12) {
-            statCard(value: "\(viewModel.diaryEntries.count)", label: "Films Logged", icon: "film.fill")
-            statCard(value: "\(viewModel.buddies.count)", label: "Buddies", icon: "person.2.fill")
-            let avg = viewModel.diaryEntries.isEmpty ? 0.0 : viewModel.diaryEntries.map(\.rating).reduce(0, +) / Double(viewModel.diaryEntries.count)
-            statCard(value: String(format: "%.1f", avg), label: "Avg Rating", icon: "popcorn.fill")
+        let stats = viewModel.userStats
+        let avg = viewModel.diaryEntries.isEmpty ? 0.0 : viewModel.diaryEntries.map(\.rating).reduce(0, +) / Double(viewModel.diaryEntries.count)
+
+        return VStack(spacing: 16) {
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Stats")
+                    .font(.headline)
+                    .foregroundStyle(PopcornTheme.darkBrown)
+                    .padding(.horizontal)
+
+                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
+                    statCard(value: "\(stats.filmsWatched)", label: "Films", icon: "film.fill")
+                    statCard(value: stats.formattedWatchTime, label: "Watch Time", icon: "clock.fill")
+                    statCard(value: "\(stats.totalMinutes)", label: "Minutes", icon: "timer")
+                }
+                .padding(.horizontal)
+
+                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
+                    statCard(value: String(format: "%.1f", avg), label: "Avg Rating", icon: "popcorn.fill")
+                    statCard(value: "\(viewModel.buddies.count)", label: "Buddies", icon: "person.2.fill")
+                    statCard(value: "\(stats.topDirectors.count)", label: "Directors", icon: "megaphone.fill")
+                }
+                .padding(.horizontal)
+            }
+
+            if !stats.topGenres.isEmpty || !stats.topActors.isEmpty || !stats.topDirectors.isEmpty {
+                Button {
+                    showFullStats = true
+                } label: {
+                    HStack {
+                        Text("View Detailed Stats")
+                            .font(.subheadline.weight(.medium))
+                        Image(systemName: "chevron.right")
+                            .font(.caption)
+                    }
+                    .foregroundStyle(PopcornTheme.warmRed)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 14)
+                    .background(Color.white, in: .rect(cornerRadius: 12))
+                }
+                .padding(.horizontal)
+            }
         }
-        .padding(.horizontal)
+        .sheet(isPresented: $showFullStats) {
+            DetailedStatsView()
+        }
     }
 
     private func statCard(value: String, label: String, icon: String) -> some View {
@@ -333,6 +374,8 @@ struct ProfileView: View {
             Text(value)
                 .font(.title2.bold())
                 .foregroundStyle(PopcornTheme.darkBrown)
+                .minimumScaleFactor(0.6)
+                .lineLimit(1)
             Text(label)
                 .font(.caption)
                 .foregroundStyle(PopcornTheme.sepiaBrown)
