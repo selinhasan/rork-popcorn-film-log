@@ -30,14 +30,14 @@ enum MockDataService {
     static let genres = ["Action", "Adventure", "Animation", "Biography", "Comedy", "Crime", "Drama", "Horror", "Music", "Mystery", "Romance", "Sci-Fi", "Thriller"]
 
     static let defaultAvatars = [
-        "avatar_1", "avatar_2", "avatar_3", "avatar_4", "avatar_5",
-        "avatar_6", "avatar_7", "avatar_8", "avatar_9", "avatar_10"
+        "avatar_1", "avatar_2", "avatar_3", "avatar_4",
+        "avatar_5", "avatar_6", "avatar_7", "avatar_8"
     ]
 
     static let sampleBuddies: [UserProfile] = [
         UserProfile(id: "buddy1", username: "filmfanatic42", email: "film@example.com", profileImageName: "avatar_2", topFiveFilms: Array(popularFilms.prefix(5)), buddyIds: ["currentUser"]),
         UserProfile(id: "buddy2", username: "cinemaqueen", email: "cinema@example.com", profileImageName: "avatar_7", topFiveFilms: Array(popularFilms.suffix(5)), buddyIds: ["currentUser"]),
-        UserProfile(id: "buddy3", username: "reelwatcher", email: "reel@example.com", profileImageName: "avatar_9", topFiveFilms: [popularFilms[2], popularFilms[4], popularFilms[6], popularFilms[8], popularFilms[10]], buddyIds: ["currentUser"]),
+        UserProfile(id: "buddy3", username: "reelwatcher", email: "reel@example.com", profileImageName: "avatar_6", topFiveFilms: [popularFilms[2], popularFilms[4], popularFilms[6], popularFilms[8], popularFilms[10]], buddyIds: ["currentUser"]),
     ]
 
     static let sampleBuddyLogs: [LogEntry] = [
@@ -54,7 +54,7 @@ enum MockDataService {
             PostComment(userId: "buddy3", username: "reelwatcher", text: "Inception. No contest."),
         ], date: Date().addingTimeInterval(-1800)),
         BuddyPost(id: "p2", userId: "buddy2", username: "cinemaqueen", profileImageName: "avatar_7", text: "The Brutalist is a must-watch this year. Brady Corbet has created something truly special.", likeCount: 8, date: Date().addingTimeInterval(-43200)),
-        BuddyPost(id: "p3", userId: "buddy3", username: "reelwatcher", profileImageName: "avatar_9", text: "Started rewatching Breaking Bad for the third time. It somehow gets better every time.", likeCount: 24, comments: [
+        BuddyPost(id: "p3", userId: "buddy3", username: "reelwatcher", profileImageName: "avatar_6", text: "Started rewatching Breaking Bad for the third time. It somehow gets better every time.", likeCount: 24, comments: [
             PostComment(userId: "buddy1", username: "filmfanatic42", text: "The best show ever made, hands down."),
         ], date: Date().addingTimeInterval(-86400)),
     ]

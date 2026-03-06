@@ -159,7 +159,7 @@ struct BuddyLogCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 10) {
-                AvatarView(name: "avatar_\((entry.userId.hashValue % 10 + 10) % 10 + 1)", size: 36)
+                AvatarView(name: "avatar_\((entry.userId.hashValue % 8 + 8) % 8 + 1)", size: 36)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(entry.username)
                         .font(.subheadline.weight(.semibold))

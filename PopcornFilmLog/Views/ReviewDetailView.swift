@@ -35,7 +35,7 @@ struct ReviewDetailView: View {
 
                 VStack(spacing: 20) {
                     HStack(spacing: 12) {
-                        AvatarView(name: "avatar_\((entry.userId.hashValue % 10 + 10) % 10 + 1)", size: 44)
+                        AvatarView(name: "avatar_\((entry.userId.hashValue % 8 + 8) % 8 + 1)", size: 44)
                         VStack(alignment: .leading, spacing: 3) {
                             Text(entry.username)
                                 .font(.headline)

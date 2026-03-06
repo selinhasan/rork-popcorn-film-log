@@ -73,7 +73,7 @@ struct OnboardingView: View {
             )
             .animation(.spring(duration: 0.3), value: selectedAvatar)
 
-            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 12), count: 5), spacing: 12) {
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 12), count: 4), spacing: 12) {
                 ForEach(MockDataService.defaultAvatars, id: \.self) { avatar in
                     Button {
                         selectedAvatar = avatar
