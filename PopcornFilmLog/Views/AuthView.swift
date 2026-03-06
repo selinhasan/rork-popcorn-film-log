@@ -462,27 +462,24 @@ struct AuthView: View {
             guard !password.isEmpty else { showValidation("Please enter a password."); return }
             guard !confirmPassword.isEmpty else { showValidation("Please confirm your password."); return }
 
-            let registeredEmails = UserDefaults.standard.stringArray(forKey: "registeredEmails") ?? []
-            if registeredEmails.contains(email.lowercased()) {
-                withAnimation(.spring(duration: 0.35)) {
-                    showEmailExistsAlert = true
-                }
-                return
-            }
-
             isLoading = true
             Task {
-                try? await Task.sleep(for: .milliseconds(800))
-                var updated = registeredEmails
-                updated.append(email.lowercased())
-                UserDefaults.standard.set(updated, forKey: "registeredEmails")
-
-                let hashedPassword = hashPassword(password)
-                UserDefaults.standard.set(hashedPassword, forKey: "pwd_\(email.lowercased())")
-                UserDefaults.standard.set(username, forKey: "user_\(email.lowercased())")
-
-                authSuccess.toggle()
-                viewModel.signUp(username: username, email: email, password: password)
+                do {
+                    try await viewModel.signUp(username: username, email: email, password: password)
+                    authSuccess.toggle()
+                } catch let error as AuthError {
+                    if case .emailExists = error {
+                        withAnimation(.spring(duration: 0.35)) {
+                            showEmailExistsAlert = true
+                        }
+                    } else if case .usernameExists = error {
+                        usernameError = "This username is already taken"
+                    } else {
+                        showValidation(error.localizedDescription ?? "Registration failed. Please try again.")
+                    }
+                } catch {
+                    showValidation("Connection error. Please check your internet and try again.")
+                }
                 isLoading = false
             }
         } else {
@@ -491,46 +488,22 @@ struct AuthView: View {
 
             isLoading = true
             Task {
-                try? await Task.sleep(for: .milliseconds(600))
-
-                let storedHash = UserDefaults.standard.string(forKey: "pwd_\(email.lowercased())")
-                if let storedHash, storedHash != hashPassword(password) {
-                    failedLoginAttempts += 1
-                    isLoading = false
-                    showValidation("Incorrect password. Please try again.")
-                    return
-                }
-
-                failedLoginAttempts = 0
-                authSuccess.toggle()
-
-                let storedUsername = UserDefaults.standard.string(forKey: "user_\(email.lowercased())") ?? email
-                viewModel.logIn(email: email, password: password)
-                if !storedUsername.isEmpty {
-                    viewModel.updateProfile(username: storedUsername)
+                do {
+                    try await viewModel.logIn(email: email, password: password)
+                    authSuccess.toggle()
+                } catch let error as AuthError {
+                    if case .invalidCredentials = error {
+                        failedLoginAttempts += 1
+                        showValidation("Incorrect email or password. Please try again.")
+                    } else {
+                        showValidation(error.localizedDescription ?? "Login failed. Please try again.")
+                    }
+                } catch {
+                    showValidation("Connection error. Please check your internet and try again.")
                 }
                 isLoading = false
             }
         }
-    }
-
-    private func hashPassword(_ password: String) -> String {
-        let data = Data(password.utf8)
-        var hash = [UInt8](repeating: 0, count: 32)
-        data.withUnsafeBytes { buffer in
-            let bytes = buffer.bindMemory(to: UInt8.self)
-            var h: UInt64 = 14695981039346656037
-            for i in 0..<bytes.count {
-                h ^= UInt64(bytes[i])
-                h &*= 1099511628211
-            }
-            withUnsafeBytes(of: h) { hashBytes in
-                for i in 0..<min(hashBytes.count, 32) {
-                    hash[i] = hashBytes[i]
-                }
-            }
-        }
-        return hash.map { String(format: "%02x", $0) }.joined()
     }
 
     private func showValidation(_ message: String) {
@@ -584,7 +557,10 @@ struct AuthView: View {
                 .padding(.horizontal)
 
                 Button {
-                    showResetConfirmation = true
+                    Task {
+                        let _ = await viewModel.requestPasswordReset(email: forgotPasswordEmail)
+                        showResetConfirmation = true
+                    }
                 } label: {
                     Text("Send Reset Link")
                         .font(.headline)

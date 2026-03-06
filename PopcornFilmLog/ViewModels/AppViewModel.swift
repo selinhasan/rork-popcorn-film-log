@@ -19,17 +19,24 @@ class AppViewModel {
     var isLoadingTrending = false
     var isSearching = false
 
+    var authError: String?
+    var isSyncing = false
+
     private let tmdb = TMDbService.shared
+    private let auth = AuthServiceClient.shared
+    private let tokenKey = "auth_token"
 
     init() {
-        if let data = UserDefaults.standard.data(forKey: "currentUser"),
+        if let token = KeychainService.load(key: tokenKey),
+           let data = UserDefaults.standard.data(forKey: "currentUser"),
            let user = try? JSONDecoder().decode(UserProfile.self, from: data) {
             currentUser = user
             isLoggedIn = true
             hasCompletedOnboarding = UserDefaults.standard.bool(forKey: "hasCompletedOnboarding")
-            loadDiary()
+            loadLocalDiary()
+            loadLocalLists()
             loadBuddies()
-            loadLists()
+            Task { await refreshProfile(token: token) }
         }
         Task { await loadTMDbData() }
     }
@@ -90,24 +97,50 @@ class AppViewModel {
         }
     }
 
-    func signUp(username: String, email: String, password: String) {
-        let user = UserProfile(id: "currentUser", username: username, email: email)
-        currentUser = user
-        isLoggedIn = true
-        saveUser()
-        loadBuddies()
+    // MARK: - Server Auth
+
+    func signUp(username: String, email: String, password: String) async throws {
+        authError = nil
+        do {
+            let response = try await auth.register(username: username, email: email, password: password)
+            KeychainService.save(key: tokenKey, value: response.token)
+            let user = mapServerUser(response.user)
+            currentUser = user
+            isLoggedIn = true
+            saveUserLocally()
+            loadBuddies()
+        } catch let error as AuthError {
+            authError = error.localizedDescription
+            throw error
+        }
     }
 
-    func logIn(email: String, password: String) {
-        let user = UserProfile(id: "currentUser", username: "popcornlover", email: email)
-        currentUser = user
-        isLoggedIn = true
-        hasCompletedOnboarding = true
-        saveUser()
-        loadBuddies()
+    func logIn(email: String, password: String) async throws {
+        authError = nil
+        do {
+            let response = try await auth.login(email: email, password: password)
+            KeychainService.save(key: tokenKey, value: response.token)
+            let user = mapServerUser(response.user)
+            currentUser = user
+            isLoggedIn = true
+            hasCompletedOnboarding = true
+            UserDefaults.standard.set(true, forKey: "hasCompletedOnboarding")
+
+            diaryEntries = response.user.diaryEntries
+            filmLists = response.user.filmLists
+
+            saveUserLocally()
+            saveLocalDiary()
+            saveLocalLists()
+            loadBuddies()
+        } catch let error as AuthError {
+            authError = error.localizedDescription
+            throw error
+        }
     }
 
     func logOut() {
+        KeychainService.delete(key: tokenKey)
         currentUser = nil
         isLoggedIn = false
         hasCompletedOnboarding = false
@@ -123,13 +156,64 @@ class AppViewModel {
     }
 
     func deleteAccount() {
-        logOut()
+        guard let token = KeychainService.load(key: tokenKey) else {
+            logOut()
+            return
+        }
+        Task {
+            try? await auth.deleteAccount(token: token)
+            logOut()
+        }
     }
 
     func completeOnboarding() {
         hasCompletedOnboarding = true
         UserDefaults.standard.set(true, forKey: "hasCompletedOnboarding")
     }
+
+    func requestPasswordReset(email: String) async -> Bool {
+        do {
+            let _ = try await auth.requestPasswordReset(email: email)
+            return true
+        } catch {
+            return false
+        }
+    }
+
+    func changePassword(current: String, new: String) async throws {
+        guard let token = KeychainService.load(key: tokenKey) else {
+            throw AuthError.unauthorized
+        }
+        try await auth.changePassword(token: token, currentPassword: current, newPassword: new)
+    }
+
+    // MARK: - Profile
+
+    func updateProfile(username: String? = nil, profileImage: String? = nil, customImageURL: String? = nil, bio: String? = nil, topFive: [Film]? = nil) {
+        if let username { currentUser?.username = username }
+        if let profileImage { currentUser?.profileImageName = profileImage }
+        if let customImageURL { currentUser?.customProfileImageURL = customImageURL }
+        if let bio { currentUser?.bio = bio }
+        if let topFive { currentUser?.topFiveFilms = topFive }
+        saveUserLocally()
+        syncProfileToServer()
+    }
+
+    func setGoldenPopcorn(filmId: String) {
+        for i in diaryEntries.indices {
+            if diaryEntries[i].film.id == filmId {
+                diaryEntries[i].isGoldenPopcorn = true
+            } else {
+                diaryEntries[i].isGoldenPopcorn = false
+            }
+        }
+        currentUser?.goldenPopcornFilmId = filmId
+        saveLocalDiary()
+        saveUserLocally()
+        syncDataToServer()
+    }
+
+    // MARK: - Film Logging
 
     func logFilm(_ film: Film, rating: Double, review: String, episodeInfo: String? = nil, isGoldenPopcorn: Bool = false, listId: String? = nil, watchDate: Date = Date()) {
         if isGoldenPopcorn {
@@ -156,41 +240,23 @@ class AppViewModel {
         if let listId, let idx = filmLists.firstIndex(where: { $0.id == listId }) {
             if !filmLists[idx].films.contains(where: { $0.id == film.id }) {
                 filmLists[idx].films.append(film)
-                saveLists()
+                saveLocalLists()
             }
         }
 
-        saveDiary()
-        saveUser()
+        saveLocalDiary()
+        saveUserLocally()
+        syncDataToServer()
     }
 
-    func updateProfile(username: String? = nil, profileImage: String? = nil, customImageURL: String? = nil, bio: String? = nil, topFive: [Film]? = nil) {
-        if let username { currentUser?.username = username }
-        if let profileImage { currentUser?.profileImageName = profileImage }
-        if let customImageURL { currentUser?.customProfileImageURL = customImageURL }
-        if let bio { currentUser?.bio = bio }
-        if let topFive { currentUser?.topFiveFilms = topFive }
-        saveUser()
-    }
-
-    func setGoldenPopcorn(filmId: String) {
-        for i in diaryEntries.indices {
-            if diaryEntries[i].film.id == filmId {
-                diaryEntries[i].isGoldenPopcorn = true
-            } else {
-                diaryEntries[i].isGoldenPopcorn = false
-            }
-        }
-        currentUser?.goldenPopcornFilmId = filmId
-        saveDiary()
-        saveUser()
-    }
+    // MARK: - Watchlist
 
     func addToWatchlist(_ film: Film) {
         guard let user = currentUser else { return }
         guard !user.watchlist.contains(where: { $0.id == film.id }) else { return }
         currentUser?.watchlist.append(film)
-        saveUser()
+        saveUserLocally()
+        syncProfileToServer()
 
         let post = BuddyPost(
             userId: user.id,
@@ -205,18 +271,21 @@ class AppViewModel {
 
     func removeFromWatchlist(_ film: Film) {
         currentUser?.watchlist.removeAll { $0.id == film.id }
-        saveUser()
+        saveUserLocally()
+        syncProfileToServer()
     }
 
     func isInWatchlist(_ film: Film) -> Bool {
         currentUser?.watchlist.contains(where: { $0.id == film.id }) ?? false
     }
 
+    // MARK: - Buddies & Posts
+
     func addBuddy(_ buddy: UserProfile) {
         guard !buddies.contains(where: { $0.id == buddy.id }) else { return }
         buddies.append(buddy)
         currentUser?.buddyIds.append(buddy.id)
-        saveUser()
+        saveUserLocally()
     }
 
     func togglePostLike(_ post: BuddyPost) {
@@ -248,7 +317,7 @@ class AppViewModel {
             .appendingPathComponent("profile_photo.jpg")
         try? data.write(to: path)
         currentUser?.customProfileImageURL = "local://profile_photo"
-        saveUser()
+        saveUserLocally()
     }
 
     static func loadLocalProfilePhoto() -> Data? {
@@ -257,68 +326,57 @@ class AppViewModel {
         return try? Data(contentsOf: path)
     }
 
+    // MARK: - Lists
+
     func createList(name: String, description: String = "", isPublic: Bool = true) {
         let list = FilmList(name: name, description: description, isPublic: isPublic)
         filmLists.append(list)
-        saveLists()
+        saveLocalLists()
+        syncDataToServer()
     }
 
     func updateList(_ list: FilmList) {
         guard let idx = filmLists.firstIndex(where: { $0.id == list.id }) else { return }
         filmLists[idx] = list
-        saveLists()
+        saveLocalLists()
+        syncDataToServer()
     }
 
     func deleteList(_ list: FilmList) {
         filmLists.removeAll { $0.id == list.id }
-        saveLists()
+        saveLocalLists()
+        syncDataToServer()
     }
 
     func addFilmToList(_ film: Film, listId: String) {
         guard let idx = filmLists.firstIndex(where: { $0.id == listId }) else { return }
         guard !filmLists[idx].films.contains(where: { $0.id == film.id }) else { return }
         filmLists[idx].films.append(film)
-        saveLists()
+        saveLocalLists()
+        syncDataToServer()
     }
 
     func removeFilmFromList(_ film: Film, listId: String) {
         guard let idx = filmLists.firstIndex(where: { $0.id == listId }) else { return }
         filmLists[idx].films.removeAll { $0.id == film.id }
-        saveLists()
+        saveLocalLists()
+        syncDataToServer()
     }
 
-    private func saveUser() {
-        guard let user = currentUser, let data = try? JSONEncoder().encode(user) else { return }
-        UserDefaults.standard.set(data, forKey: "currentUser")
+    func shareableListText(for list: FilmList) -> String {
+        var text = "\(list.name)\n"
+        if !list.description.isEmpty {
+            text += "\(list.description)\n"
+        }
+        text += "\n"
+        for (index, film) in list.films.enumerated() {
+            text += "\(index + 1). \(film.title) (\(film.year))\n"
+        }
+        text += "\nShared from Popcorn Film Log 🍿"
+        return text
     }
 
-    private func saveDiary() {
-        guard let data = try? JSONEncoder().encode(diaryEntries) else { return }
-        UserDefaults.standard.set(data, forKey: "diaryEntries")
-    }
-
-    private func loadDiary() {
-        guard let data = UserDefaults.standard.data(forKey: "diaryEntries"),
-              let entries = try? JSONDecoder().decode([LogEntry].self, from: data) else { return }
-        diaryEntries = entries
-    }
-
-    private func saveLists() {
-        guard let data = try? JSONEncoder().encode(filmLists) else { return }
-        UserDefaults.standard.set(data, forKey: "filmLists")
-    }
-
-    private func loadLists() {
-        guard let data = UserDefaults.standard.data(forKey: "filmLists"),
-              let lists = try? JSONDecoder().decode([FilmList].self, from: data) else { return }
-        filmLists = lists
-    }
-
-    private func loadBuddies() {
-        buddies = MockDataService.sampleBuddies
-        buddyLogs = MockDataService.sampleBuddyLogs
-        posts = MockDataService.samplePosts
-    }
+    // MARK: - Stats
 
     var userStats: UserStats {
         let films = diaryEntries.map(\.film)
@@ -368,6 +426,8 @@ class AppViewModel {
         )
     }
 
+    // MARK: - Private Helpers
+
     private func parseRuntime(_ runtime: String) -> Int {
         var minutes = 0
         let lower = runtime.lowercased()
@@ -389,16 +449,137 @@ class AppViewModel {
         return minutes
     }
 
-    func shareableListText(for list: FilmList) -> String {
-        var text = "\(list.name)\n"
-        if !list.description.isEmpty {
-            text += "\(list.description)\n"
+    private func mapServerUser(_ serverUser: ServerUserProfile) -> UserProfile {
+        let dateFormatter = ISO8601DateFormatter()
+        let joinDate = dateFormatter.date(from: serverUser.joinDate) ?? Date()
+
+        return UserProfile(
+            id: serverUser.id,
+            username: serverUser.username,
+            email: serverUser.email,
+            profileImageName: serverUser.profileImageName,
+            customProfileImageURL: serverUser.customProfileImageURL,
+            bio: serverUser.bio,
+            topFiveFilms: serverUser.topFiveFilms,
+            goldenPopcornFilmId: serverUser.goldenPopcornFilmId,
+            buddyIds: serverUser.buddyIds,
+            watchlist: serverUser.watchlist,
+            joinDate: joinDate
+        )
+    }
+
+    private func refreshProfile(token: String) async {
+        do {
+            let response = try await auth.getProfile(token: token)
+            let user = mapServerUser(response.user)
+            currentUser = user
+            saveUserLocally()
+
+            let dataResponse = try await auth.getData(token: token)
+            if !dataResponse.diaryEntries.isEmpty {
+                diaryEntries = dataResponse.diaryEntries
+                saveLocalDiary()
+            }
+            if !dataResponse.filmLists.isEmpty {
+                filmLists = dataResponse.filmLists
+                saveLocalLists()
+            }
+        } catch {
+            // Keep using local data if server is unreachable
         }
-        text += "\n"
-        for (index, film) in list.films.enumerated() {
-            text += "\(index + 1). \(film.title) (\(film.year))\n"
+    }
+
+    private func syncProfileToServer() {
+        guard let token = KeychainService.load(key: tokenKey), let user = currentUser else { return }
+        Task {
+            var updates: [String: Any] = [:]
+            updates["username"] = user.username
+            updates["profileImageName"] = user.profileImageName
+            updates["bio"] = user.bio
+
+            if let customURL = user.customProfileImageURL {
+                updates["customProfileImageURL"] = customURL
+            }
+            if let goldenId = user.goldenPopcornFilmId {
+                updates["goldenPopcornFilmId"] = goldenId
+            }
+
+            if !user.topFiveFilms.isEmpty {
+                let filmsData = user.topFiveFilms.map { filmToDict($0) }
+                updates["topFiveFilms"] = filmsData
+            }
+
+            if !user.watchlist.isEmpty {
+                let watchlistData = user.watchlist.map { filmToDict($0) }
+                updates["watchlist"] = watchlistData
+            }
+
+            updates["buddyIds"] = user.buddyIds
+
+            let _ = try? await auth.updateProfile(token: token, updates: updates)
         }
-        text += "\nShared from Popcorn Film Log 🍿"
-        return text
+    }
+
+    private func syncDataToServer() {
+        guard let token = KeychainService.load(key: tokenKey) else { return }
+        Task {
+            isSyncing = true
+            let diaryData = diaryEntries.compactMap { entry -> [String: Any]? in
+                guard let data = try? JSONEncoder().encode(entry),
+                      let dict = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return nil }
+                return dict
+            }
+            let listsData = filmLists.compactMap { list -> [String: Any]? in
+                guard let data = try? JSONEncoder().encode(list),
+                      let dict = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return nil }
+                return dict
+            }
+            let watchlistData = (currentUser?.watchlist ?? []).compactMap { film -> [String: Any]? in
+                guard let data = try? JSONEncoder().encode(film),
+                      let dict = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return nil }
+                return dict
+            }
+            try? await auth.syncData(token: token, diaryEntries: diaryData, filmLists: listsData, watchlist: watchlistData)
+            isSyncing = false
+        }
+    }
+
+    private func filmToDict(_ film: Film) -> [String: Any] {
+        guard let data = try? JSONEncoder().encode(film),
+              let dict = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return [:] }
+        return dict
+    }
+
+    private func saveUserLocally() {
+        guard let user = currentUser, let data = try? JSONEncoder().encode(user) else { return }
+        UserDefaults.standard.set(data, forKey: "currentUser")
+    }
+
+    private func saveLocalDiary() {
+        guard let data = try? JSONEncoder().encode(diaryEntries) else { return }
+        UserDefaults.standard.set(data, forKey: "diaryEntries")
+    }
+
+    private func loadLocalDiary() {
+        guard let data = UserDefaults.standard.data(forKey: "diaryEntries"),
+              let entries = try? JSONDecoder().decode([LogEntry].self, from: data) else { return }
+        diaryEntries = entries
+    }
+
+    private func saveLocalLists() {
+        guard let data = try? JSONEncoder().encode(filmLists) else { return }
+        UserDefaults.standard.set(data, forKey: "filmLists")
+    }
+
+    private func loadLocalLists() {
+        guard let data = UserDefaults.standard.data(forKey: "filmLists"),
+              let lists = try? JSONDecoder().decode([FilmList].self, from: data) else { return }
+        filmLists = lists
+    }
+
+    private func loadBuddies() {
+        buddies = MockDataService.sampleBuddies
+        buddyLogs = MockDataService.sampleBuddyLogs
+        posts = MockDataService.samplePosts
     }
 }
