@@ -5,15 +5,26 @@ struct AvatarView: View {
     let size: CGFloat
     var customURL: String? = nil
 
-    private static let avatarURLs: [String: String] = [
-        "avatar_1": "https://r2-pub.rork.com/generated-images/c9b74e53-8fdb-496a-befa-bc8d1a09ca22.png",
-        "avatar_2": "https://r2-pub.rork.com/generated-images/c82123f2-c0c7-4ed9-99ed-9853d00732f4.png",
-        "avatar_3": "https://r2-pub.rork.com/generated-images/541c8e74-84be-4f8c-a442-ac001010d813.png",
-        "avatar_4": "https://r2-pub.rork.com/generated-images/ce9a47a6-1bc4-4763-a678-617123a53d74.png",
-        "avatar_5": "https://r2-pub.rork.com/generated-images/45a66c7e-5a08-43c8-9663-e4f5883167ff.png",
-        "avatar_6": "https://r2-pub.rork.com/generated-images/21b41308-9001-42a1-bbec-b313261bdf06.png",
-        "avatar_7": "https://r2-pub.rork.com/generated-images/2d30faa1-52a1-47f7-8f68-6cf7c1e596f2.png",
-        "avatar_8": "https://r2-pub.rork.com/generated-images/4101e5ee-654c-47a2-ae21-3d33e83d42e8.png",
+    static let avatarURLs: [String: String] = [
+        "avatar_1": "https://image.tmdb.org/t/p/w500/fuTEPMsBtV1zE98ujPONbKiYDc2.jpg",
+        "avatar_2": "https://image.tmdb.org/t/p/w500/cckcYc2v0yh1tc9QjRelptcOBko.jpg",
+        "avatar_3": "https://image.tmdb.org/t/p/w500/xuxgPXyv6KjUHIM8cZaxx4ry25L.jpg",
+        "avatar_4": "https://image.tmdb.org/t/p/w500/resiaRfWvj4N84TgJi9DPOafCpq.jpg",
+        "avatar_5": "https://image.tmdb.org/t/p/w500/xD4jTA3KmVp5Rq3aHcymL9DUGjD.jpg",
+        "avatar_6": "https://image.tmdb.org/t/p/w500/utKPqWm9MAcL6NqN0Kd71dWUmXM.jpg",
+        "avatar_7": "https://image.tmdb.org/t/p/w500/jPsLqiYGSofU4s6BjrxnefMfabb.jpg",
+        "avatar_8": "https://image.tmdb.org/t/p/w500/m8HAAjq1T75JypKk0v1FFQn4ysZ.jpg",
+    ]
+
+    static let avatarLabels: [String: String] = [
+        "avatar_1": "Vito Corleone",
+        "avatar_2": "Tyler Durden",
+        "avatar_3": "Mia Wallace",
+        "avatar_4": "Clarice Starling",
+        "avatar_5": "Trinity",
+        "avatar_6": "Princess Leia",
+        "avatar_7": "Red",
+        "avatar_8": "Tony Montana",
     ]
 
     private var avatarImageURL: URL? {

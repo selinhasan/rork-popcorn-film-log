@@ -73,23 +73,29 @@ struct OnboardingView: View {
             )
             .animation(.spring(duration: 0.3), value: selectedAvatar)
 
-            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 12), count: 4), spacing: 12) {
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 12), count: 4), spacing: 16) {
                 ForEach(MockDataService.defaultAvatars, id: \.self) { avatar in
                     Button {
                         selectedAvatar = avatar
                         hasCustomPhoto = false
                     } label: {
-                        AvatarView(name: avatar, size: 52)
-                            .overlay {
-                                if selectedAvatar == avatar && !hasCustomPhoto {
-                                    Circle()
-                                        .stroke(PopcornTheme.warmRed, lineWidth: 3)
+                        VStack(spacing: 4) {
+                            AvatarView(name: avatar, size: 52)
+                                .overlay {
+                                    if selectedAvatar == avatar && !hasCustomPhoto {
+                                        Circle()
+                                            .stroke(PopcornTheme.warmRed, lineWidth: 3)
+                                    }
                                 }
-                            }
+                            Text(AvatarView.avatarLabels[avatar] ?? "")
+                                .font(.caption2)
+                                .foregroundStyle(PopcornTheme.sepiaBrown)
+                                .lineLimit(1)
+                        }
                     }
                 }
             }
-            .padding(.horizontal, 32)
+            .padding(.horizontal, 24)
 
             PhotosPicker(selection: $selectedPhotoItem, matching: .images) {
                 HStack(spacing: 8) {
