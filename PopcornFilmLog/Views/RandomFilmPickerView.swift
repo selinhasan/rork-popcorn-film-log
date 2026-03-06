@@ -28,7 +28,7 @@ struct RandomFilmPickerView: View {
         case .watchlist:
             films = viewModel.currentUser?.watchlist ?? []
         case .allFilms:
-            films = MockDataService.allContent
+            films = viewModel.popularFilms.isEmpty ? MockDataService.allContent : viewModel.popularFilms
         case .withBuddy:
             var merged = viewModel.currentUser?.watchlist ?? []
             if let buddyId = selectedBuddyId,
@@ -51,6 +51,11 @@ struct RandomFilmPickerView: View {
         }
 
         return films
+    }
+
+    private var availableGenres: [String] {
+        let genreNames = viewModel.tmdbGenres.map(\.name)
+        return genreNames.isEmpty ? MockDataService.genres : genreNames
     }
 
     var body: some View {
@@ -119,7 +124,7 @@ struct RandomFilmPickerView: View {
                                         filterChip(nil, label: "Any Genre", selected: selectedGenre == nil) {
                                             selectedGenre = nil
                                         }
-                                        ForEach(MockDataService.genres, id: \.self) { genre in
+                                        ForEach(availableGenres, id: \.self) { genre in
                                             filterChip(genre, label: genre, selected: selectedGenre == genre) {
                                                 selectedGenre = genre
                                             }

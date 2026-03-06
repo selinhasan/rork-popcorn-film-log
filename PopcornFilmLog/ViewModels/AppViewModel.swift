@@ -12,6 +12,15 @@ class AppViewModel {
     var posts: [BuddyPost] = []
     var filmLists: [FilmList] = []
 
+    var trendingFilms: [Film] = []
+    var popularFilms: [Film] = []
+    var searchResults: [Film] = []
+    var tmdbGenres: [TMDbGenre] = []
+    var isLoadingTrending = false
+    var isSearching = false
+
+    private let tmdb = TMDbService.shared
+
     init() {
         if let data = UserDefaults.standard.data(forKey: "currentUser"),
            let user = try? JSONDecoder().decode(UserProfile.self, from: data) {
@@ -21,6 +30,63 @@ class AppViewModel {
             loadDiary()
             loadBuddies()
             loadLists()
+        }
+        Task { await loadTMDbData() }
+    }
+
+    func loadTMDbData() async {
+        isLoadingTrending = true
+        do {
+            async let genresTask = tmdb.getGenres()
+            async let trendingTask = tmdb.getTrending()
+            async let popularTask = tmdb.getPopular()
+
+            let (genres, trending, popular) = try await (genresTask, trendingTask, popularTask)
+            tmdbGenres = genres
+            trendingFilms = trending.results.map { tmdb.tmdbMovieToFilm($0, genres: genres) }
+            popularFilms = popular.results.map { tmdb.tmdbMovieToFilm($0, genres: genres) }
+        } catch {
+            trendingFilms = MockDataService.popularFilms
+            popularFilms = MockDataService.popularFilms
+        }
+        isLoadingTrending = false
+    }
+
+    func searchFilms(query: String) async {
+        guard !query.isEmpty else {
+            searchResults = []
+            return
+        }
+        isSearching = true
+        do {
+            let response = try await tmdb.searchMulti(query: query)
+            searchResults = response.results
+                .filter { $0.posterPath != nil }
+                .map { tmdb.tmdbMovieToFilm($0, genres: tmdbGenres) }
+        } catch {
+            searchResults = MockDataService.allContent.filter {
+                $0.title.localizedCaseInsensitiveContains(query)
+            }
+        }
+        isSearching = false
+    }
+
+    func fetchFilmDetail(filmId: String) async -> Film? {
+        guard let id = Int(filmId) else { return nil }
+        do {
+            let detail = try await tmdb.getMovieDetail(id: id)
+            return detail.toFilm()
+        } catch {
+            return nil
+        }
+    }
+
+    func discoverFilms(genreId: Int? = nil, sortBy: String = "popularity.desc", page: Int = 1) async -> [Film] {
+        do {
+            let response = try await tmdb.discoverMovies(genreId: genreId, sortBy: sortBy, page: page)
+            return response.results.map { tmdb.tmdbMovieToFilm($0, genres: tmdbGenres) }
+        } catch {
+            return []
         }
     }
 

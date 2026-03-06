@@ -1,33 +1,20 @@
 import SwiftUI
 
 struct BrowseView: View {
+    @Environment(AppViewModel.self) private var viewModel
     @State private var searchText = ""
-    @State private var selectedGenre: String? = nil
+    @State private var selectedGenre: TMDbGenre? = nil
     @State private var sortOption: SortOption = .popular
     @State private var selectedFilm: Film?
+    @State private var displayedFilms: [Film] = []
+    @State private var isLoading = false
+    @State private var searchTask: Task<Void, Never>?
 
     enum SortOption: String, CaseIterable {
         case popular = "Popular"
         case topRated = "Top Rated"
         case newest = "Newest"
-        case oldest = "Oldest"
-    }
-
-    private var filteredFilms: [Film] {
-        var films = MockDataService.allContent
-        if !searchText.isEmpty {
-            films = films.filter { $0.title.localizedCaseInsensitiveContains(searchText) }
-        }
-        if let genre = selectedGenre {
-            films = films.filter { $0.genre.contains(genre) }
-        }
-        switch sortOption {
-        case .popular: break
-        case .topRated: films.sort { $0.averageRating > $1.averageRating }
-        case .newest: films.sort { $0.year > $1.year }
-        case .oldest: films.sort { $0.year < $1.year }
-        }
-        return films
+        case trending = "Trending"
     }
 
     var body: some View {
@@ -36,55 +23,145 @@ struct BrowseView: View {
                 VStack(spacing: 16) {
                     genreChips
                     sortPicker
-                    filmGrid
-                    articlesSection
+
+                    if isLoading || viewModel.isSearching {
+                        ProgressView()
+                            .tint(PopcornTheme.warmRed)
+                            .padding(.top, 40)
+                    } else if !searchText.isEmpty && viewModel.searchResults.isEmpty {
+                        VStack(spacing: 12) {
+                            Image(systemName: "magnifyingglass")
+                                .font(.system(size: 36))
+                                .foregroundStyle(PopcornTheme.sepiaBrown.opacity(0.4))
+                            Text("No results for \"\(searchText)\"")
+                                .font(.subheadline)
+                                .foregroundStyle(PopcornTheme.subtleGray)
+                        }
+                        .padding(.top, 40)
+                    } else {
+                        filmGrid
+                    }
+
+                    tmdbAttribution
                 }
                 .padding(.bottom, 20)
             }
             .background(PopcornTheme.cream.ignoresSafeArea())
             .navigationTitle("Browse")
             .searchable(text: $searchText, prompt: "Search films & shows")
+            .onChange(of: searchText) { _, newValue in
+                searchTask?.cancel()
+                searchTask = Task {
+                    try? await Task.sleep(for: .milliseconds(400))
+                    guard !Task.isCancelled else { return }
+                    await viewModel.searchFilms(query: newValue)
+                }
+            }
+            .onChange(of: selectedGenre) { _, _ in
+                Task { await loadFilmsForFilter() }
+            }
+            .onChange(of: sortOption) { _, _ in
+                Task { await loadFilmsForFilter() }
+            }
             .sheet(item: $selectedFilm) { film in
                 FilmDetailSheet(film: film)
             }
+            .task {
+                if displayedFilms.isEmpty {
+                    await loadFilmsForFilter()
+                }
+            }
         }
+    }
+
+    private func loadFilmsForFilter() async {
+        guard searchText.isEmpty else { return }
+        isLoading = true
+
+        let sortBy: String
+        switch sortOption {
+        case .popular: sortBy = "popularity.desc"
+        case .topRated: sortBy = "vote_average.desc"
+        case .newest: sortBy = "primary_release_date.desc"
+        case .trending: sortBy = "popularity.desc"
+        }
+
+        if sortOption == .trending {
+            if let genre = selectedGenre {
+                displayedFilms = viewModel.trendingFilms.filter { $0.genre.contains(genre.name) }
+            } else {
+                displayedFilms = viewModel.trendingFilms
+            }
+        } else {
+            let films = await viewModel.discoverFilms(genreId: selectedGenre?.id, sortBy: sortBy)
+            displayedFilms = films
+        }
+
+        if displayedFilms.isEmpty {
+            displayedFilms = viewModel.popularFilms
+        }
+        isLoading = false
+    }
+
+    private var filmsToShow: [Film] {
+        if !searchText.isEmpty {
+            return viewModel.searchResults
+        }
+        return displayedFilms
     }
 
     private var genreChips: some View {
         ScrollView(.horizontal) {
             HStack(spacing: 8) {
-                genreButton(nil, label: "All")
-                ForEach(MockDataService.genres, id: \.self) { genre in
-                    genreButton(genre, label: genre)
+                Button {
+                    withAnimation(.spring(duration: 0.25)) {
+                        selectedGenre = nil
+                    }
+                } label: {
+                    Text("All")
+                        .font(.subheadline.weight(.medium))
+                        .foregroundStyle(selectedGenre == nil ? .white : PopcornTheme.darkBrown)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 8)
+                        .background(
+                            selectedGenre == nil ? PopcornTheme.warmRed : Color.white,
+                            in: .capsule
+                        )
+                        .overlay {
+                            if selectedGenre != nil {
+                                Capsule()
+                                    .stroke(PopcornTheme.sepiaBrown.opacity(0.2), lineWidth: 1)
+                            }
+                        }
+                }
+
+                ForEach(viewModel.tmdbGenres) { genre in
+                    Button {
+                        withAnimation(.spring(duration: 0.25)) {
+                            selectedGenre = genre
+                        }
+                    } label: {
+                        Text(genre.name)
+                            .font(.subheadline.weight(.medium))
+                            .foregroundStyle(selectedGenre?.id == genre.id ? .white : PopcornTheme.darkBrown)
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 8)
+                            .background(
+                                selectedGenre?.id == genre.id ? PopcornTheme.warmRed : Color.white,
+                                in: .capsule
+                            )
+                            .overlay {
+                                if selectedGenre?.id != genre.id {
+                                    Capsule()
+                                        .stroke(PopcornTheme.sepiaBrown.opacity(0.2), lineWidth: 1)
+                                }
+                            }
+                    }
                 }
             }
         }
         .contentMargins(.horizontal, 16)
         .scrollIndicators(.hidden)
-    }
-
-    private func genreButton(_ genre: String?, label: String) -> some View {
-        Button {
-            withAnimation(.spring(duration: 0.25)) {
-                selectedGenre = genre
-            }
-        } label: {
-            Text(label)
-                .font(.subheadline.weight(.medium))
-                .foregroundStyle(selectedGenre == genre ? .white : PopcornTheme.darkBrown)
-                .padding(.horizontal, 14)
-                .padding(.vertical, 8)
-                .background(
-                    selectedGenre == genre ? PopcornTheme.warmRed : Color.white,
-                    in: .capsule
-                )
-                .overlay {
-                    if selectedGenre != genre {
-                        Capsule()
-                            .stroke(PopcornTheme.sepiaBrown.opacity(0.2), lineWidth: 1)
-                    }
-                }
-        }
     }
 
     private var sortPicker: some View {
@@ -108,7 +185,7 @@ struct BrowseView: View {
         let columns = [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)]
 
         return LazyVGrid(columns: columns, spacing: 14) {
-            ForEach(filteredFilms) { film in
+            ForEach(filmsToShow) { film in
                 Button {
                     selectedFilm = film
                 } label: {
@@ -119,7 +196,7 @@ struct BrowseView: View {
                                 AsyncImage(url: URL(string: film.posterURL)) { phase in
                                     if let image = phase.image {
                                         image.resizable().aspectRatio(contentMode: .fill)
-                                    } else {
+                                    } else if phase.error != nil {
                                         VStack(spacing: 4) {
                                             Image(systemName: "film")
                                                 .font(.title2)
@@ -127,6 +204,9 @@ struct BrowseView: View {
                                                 .font(.caption2)
                                         }
                                         .foregroundStyle(PopcornTheme.sepiaBrown)
+                                    } else {
+                                        ProgressView()
+                                            .tint(PopcornTheme.sepiaBrown)
                                     }
                                 }
                                 .allowsHitTesting(false)
@@ -172,49 +252,13 @@ struct BrowseView: View {
         .padding(.horizontal)
     }
 
-    private var articlesSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Image(systemName: "newspaper.fill")
-                    .foregroundStyle(PopcornTheme.sepiaBrown)
-                Text("Film Articles")
-                    .font(.title3.bold())
-                    .foregroundStyle(PopcornTheme.darkBrown)
-            }
-            .padding(.horizontal)
+    private var tmdbAttribution: some View {
+        Text("This product uses the TMDb API but is not endorsed or certified by TMDb.")
+            .font(.caption2)
+            .foregroundStyle(PopcornTheme.subtleGray)
+            .multilineTextAlignment(.center)
+            .padding(.horizontal, 32)
             .padding(.top, 8)
-
-            ForEach(MockDataService.articles) { article in
-                HStack(spacing: 12) {
-                    RoundedRectangle(cornerRadius: 8)
-                        .fill(PopcornTheme.sepiaBrown.opacity(0.15))
-                        .frame(width: 60, height: 60)
-                        .overlay {
-                            Image(systemName: "doc.text")
-                                .foregroundStyle(PopcornTheme.sepiaBrown)
-                        }
-
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(article.title)
-                            .font(.subheadline.weight(.medium))
-                            .foregroundStyle(PopcornTheme.darkBrown)
-                            .lineLimit(2)
-                        HStack {
-                            Text(article.source)
-                            Text("·")
-                            Text(article.timeAgo)
-                        }
-                        .font(.caption)
-                        .foregroundStyle(PopcornTheme.subtleGray)
-                    }
-
-                    Spacer()
-                }
-                .padding(10)
-                .background(Color.white, in: .rect(cornerRadius: 12))
-                .padding(.horizontal)
-            }
-        }
     }
 }
 
@@ -223,6 +267,12 @@ struct FilmDetailSheet: View {
     @Environment(AppViewModel.self) private var viewModel
     @Environment(\.dismiss) private var dismiss
     @State private var showLogSheet = false
+    @State private var detailedFilm: Film?
+    @State private var isLoadingDetail = false
+
+    private var displayFilm: Film {
+        detailedFilm ?? film
+    }
 
     var buddyReviews: [LogEntry] {
         viewModel.buddyLogs.filter { $0.film.id == film.id }
@@ -240,7 +290,7 @@ struct FilmDetailSheet: View {
                         Color(PopcornTheme.sepiaBrown.opacity(0.15))
                             .frame(height: 360)
                             .overlay {
-                                AsyncImage(url: URL(string: film.posterURL)) { phase in
+                                AsyncImage(url: URL(string: displayFilm.posterURL)) { phase in
                                     if let image = phase.image {
                                         image.resizable().aspectRatio(contentMode: .fill)
                                     } else {
@@ -264,29 +314,31 @@ struct FilmDetailSheet: View {
 
                     VStack(spacing: 16) {
                         VStack(spacing: 8) {
-                            Text(film.title)
+                            Text(displayFilm.title)
                                 .font(.title2.bold())
                                 .foregroundStyle(PopcornTheme.darkBrown)
                                 .multilineTextAlignment(.center)
 
                             HStack(spacing: 8) {
-                                Text(film.year)
-                                if !film.runtime.isEmpty {
+                                Text(displayFilm.year)
+                                if !displayFilm.runtime.isEmpty {
                                     Text("·")
-                                    Text(film.runtime)
+                                    Text(displayFilm.runtime)
                                 }
-                                Text("·")
-                                Text(film.director)
+                                if !displayFilm.director.isEmpty {
+                                    Text("·")
+                                    Text(displayFilm.director)
+                                }
                             }
                             .font(.subheadline)
                             .foregroundStyle(PopcornTheme.sepiaBrown)
 
-                            if film.averageRating > 0 {
+                            if displayFilm.averageRating > 0 {
                                 HStack(spacing: 6) {
                                     Image(systemName: "popcorn.fill")
                                         .font(.caption)
                                         .foregroundStyle(PopcornTheme.popcornYellow)
-                                    Text(String(format: "%.1f", film.averageRating))
+                                    Text(String(format: "%.1f", displayFilm.averageRating))
                                         .font(.subheadline.weight(.bold))
                                         .foregroundStyle(PopcornTheme.darkBrown)
                                     Text("avg from Popcorn users")
@@ -298,26 +350,41 @@ struct FilmDetailSheet: View {
                         .padding(.horizontal)
                         .padding(.top, -16)
 
-                        ScrollView(.horizontal) {
-                            HStack(spacing: 6) {
-                                ForEach(film.genre, id: \.self) { genre in
-                                    Text(genre)
-                                        .font(.caption.weight(.medium))
-                                        .foregroundStyle(PopcornTheme.darkBrown)
-                                        .padding(.horizontal, 10)
-                                        .padding(.vertical, 5)
-                                        .background(PopcornTheme.popcornYellow.opacity(0.3), in: .capsule)
+                        if !displayFilm.genre.isEmpty {
+                            ScrollView(.horizontal) {
+                                HStack(spacing: 6) {
+                                    ForEach(displayFilm.genre, id: \.self) { genre in
+                                        Text(genre)
+                                            .font(.caption.weight(.medium))
+                                            .foregroundStyle(PopcornTheme.darkBrown)
+                                            .padding(.horizontal, 10)
+                                            .padding(.vertical, 5)
+                                            .background(PopcornTheme.popcornYellow.opacity(0.3), in: .capsule)
+                                    }
                                 }
                             }
+                            .contentMargins(.horizontal, 16)
+                            .scrollIndicators(.hidden)
                         }
-                        .contentMargins(.horizontal, 16)
-                        .scrollIndicators(.hidden)
 
-                        if !film.synopsis.isEmpty {
-                            Text(film.synopsis)
+                        if !displayFilm.synopsis.isEmpty {
+                            Text(displayFilm.synopsis)
                                 .font(.body)
                                 .foregroundStyle(PopcornTheme.sepiaBrown)
                                 .padding(.horizontal)
+                        }
+
+                        if !displayFilm.cast.isEmpty {
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("Cast")
+                                    .font(.headline)
+                                    .foregroundStyle(PopcornTheme.darkBrown)
+                                Text(displayFilm.cast.joined(separator: ", "))
+                                    .font(.subheadline)
+                                    .foregroundStyle(PopcornTheme.sepiaBrown)
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.horizontal)
                         }
 
                         VStack(spacing: 10) {
@@ -337,9 +404,9 @@ struct FilmDetailSheet: View {
 
                             Button {
                                 if isOnWatchlist {
-                                    viewModel.removeFromWatchlist(film)
+                                    viewModel.removeFromWatchlist(displayFilm)
                                 } else {
-                                    viewModel.addToWatchlist(film)
+                                    viewModel.addToWatchlist(displayFilm)
                                 }
                             } label: {
                                 HStack {
@@ -414,7 +481,19 @@ struct FilmDetailSheet: View {
             ReviewDetailView(entry: entry)
         }
         .sheet(isPresented: $showLogSheet) {
-            LogFilmView(preselectedFilm: film)
+            LogFilmView(preselectedFilm: displayFilm)
         }
+        .task {
+            await loadDetail()
+        }
+    }
+
+    private func loadDetail() async {
+        guard let id = Int(film.id) else { return }
+        isLoadingDetail = true
+        if let detail = await viewModel.fetchFilmDetail(filmId: film.id) {
+            detailedFilm = detail
+        }
+        isLoadingDetail = false
     }
 }

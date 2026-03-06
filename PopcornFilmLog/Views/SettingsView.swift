@@ -267,6 +267,7 @@ struct EditTopFiveSheet: View {
     @Environment(\.dismiss) private var dismiss
     @State private var topFive: [Film] = []
     @State private var searchText = ""
+    @State private var searchTask: Task<Void, Never>?
 
     var body: some View {
         NavigationStack {
@@ -318,6 +319,14 @@ struct EditTopFiveSheet: View {
 
                 if topFive.count < 5 {
                     Section("Add Films") {
+                        if viewModel.isSearching {
+                            HStack {
+                                Spacer()
+                                ProgressView()
+                                    .tint(PopcornTheme.warmRed)
+                                Spacer()
+                            }
+                        }
                         ForEach(availableFilms) { film in
                             Button {
                                 withAnimation {
@@ -358,6 +367,14 @@ struct EditTopFiveSheet: View {
                 }
             }
             .searchable(text: $searchText, prompt: "Search films")
+            .onChange(of: searchText) { _, newValue in
+                searchTask?.cancel()
+                searchTask = Task {
+                    try? await Task.sleep(for: .milliseconds(400))
+                    guard !Task.isCancelled else { return }
+                    await viewModel.searchFilms(query: newValue)
+                }
+            }
             .navigationTitle("Top 5 Films")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -380,11 +397,9 @@ struct EditTopFiveSheet: View {
 
     private var availableFilms: [Film] {
         if !searchText.isEmpty {
-            let allMatches = MockDataService.allContent.filter { film in
-                !topFive.contains { $0.id == film.id } &&
-                film.title.localizedCaseInsensitiveContains(searchText)
+            return viewModel.searchResults.filter { film in
+                !topFive.contains { $0.id == film.id }
             }
-            return Array(allMatches.prefix(15))
         }
 
         let highestRated = viewModel.diaryEntries
@@ -392,12 +407,12 @@ struct EditTopFiveSheet: View {
             .map(\.film)
             .filter { film in !topFive.contains { $0.id == film.id } }
 
-        let popular = MockDataService.popularFilms.filter { film in
+        let trending = viewModel.trendingFilms.filter { film in
             !topFive.contains { $0.id == film.id } &&
             !highestRated.contains { $0.id == film.id }
         }
 
-        let combined = highestRated + popular
+        let combined = highestRated + trending
         return Array(combined.prefix(15))
     }
 }

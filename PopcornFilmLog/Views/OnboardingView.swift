@@ -10,6 +10,7 @@ struct OnboardingView: View {
     @State private var filmSearchText = ""
     @State private var selectedPhotoItem: PhotosPickerItem?
     @State private var hasCustomPhoto = false
+    @State private var searchTask: Task<Void, Never>?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -147,6 +148,14 @@ struct OnboardingView: View {
             .padding(10)
             .background(Color.white, in: .rect(cornerRadius: 10))
             .padding(.horizontal)
+            .onChange(of: filmSearchText) { _, newValue in
+                searchTask?.cancel()
+                searchTask = Task {
+                    try? await Task.sleep(for: .milliseconds(400))
+                    guard !Task.isCancelled else { return }
+                    await viewModel.searchFilms(query: newValue)
+                }
+            }
 
             ScrollView {
                 VStack(spacing: 8) {
@@ -169,33 +178,39 @@ struct OnboardingView: View {
                             .padding(.horizontal)
                             .padding(.top, 12)
 
-                        ForEach(suggestedFilms) { film in
-                            Button {
-                                withAnimation(.spring(duration: 0.3)) {
-                                    if topFiveFilms.count < 5 {
-                                        topFiveFilms.append(film)
+                        if viewModel.isSearching {
+                            ProgressView()
+                                .tint(PopcornTheme.warmRed)
+                                .padding(.top, 16)
+                        } else {
+                            ForEach(suggestedFilms) { film in
+                                Button {
+                                    withAnimation(.spring(duration: 0.3)) {
+                                        if topFiveFilms.count < 5 {
+                                            topFiveFilms.append(film)
+                                        }
                                     }
-                                }
-                            } label: {
-                                HStack(spacing: 12) {
-                                    filmPosterSmall(film.posterURL)
-                                    VStack(alignment: .leading, spacing: 2) {
-                                        Text(film.title)
-                                            .font(.subheadline.weight(.medium))
-                                            .foregroundStyle(PopcornTheme.darkBrown)
-                                        Text(film.year)
-                                            .font(.caption)
-                                            .foregroundStyle(PopcornTheme.sepiaBrown)
+                                } label: {
+                                    HStack(spacing: 12) {
+                                        filmPosterSmall(film.posterURL)
+                                        VStack(alignment: .leading, spacing: 2) {
+                                            Text(film.title)
+                                                .font(.subheadline.weight(.medium))
+                                                .foregroundStyle(PopcornTheme.darkBrown)
+                                            Text(film.year)
+                                                .font(.caption)
+                                                .foregroundStyle(PopcornTheme.sepiaBrown)
+                                        }
+                                        Spacer()
+                                        Image(systemName: "plus.circle.fill")
+                                            .foregroundStyle(PopcornTheme.freshGreen)
+                                            .font(.title3)
                                     }
-                                    Spacer()
-                                    Image(systemName: "plus.circle.fill")
-                                        .foregroundStyle(PopcornTheme.freshGreen)
-                                        .font(.title3)
+                                    .padding(10)
+                                    .background(Color.white, in: .rect(cornerRadius: 10))
                                 }
-                                .padding(10)
-                                .background(Color.white, in: .rect(cornerRadius: 10))
+                                .padding(.horizontal)
                             }
-                            .padding(.horizontal)
                         }
                     }
                 }
@@ -319,17 +334,16 @@ struct OnboardingView: View {
     }
 
     private var suggestedFilms: [Film] {
-        let base = MockDataService.popularFilms.filter { film in
+        if !filmSearchText.isEmpty {
+            return viewModel.searchResults.filter { film in
+                !topFiveFilms.contains(where: { $0.id == film.id })
+            }
+        }
+
+        let trending = viewModel.trendingFilms.isEmpty ? MockDataService.popularFilms : viewModel.trendingFilms
+        return trending.filter { film in
             !topFiveFilms.contains(where: { $0.id == film.id })
-        }
-        if filmSearchText.isEmpty {
-            return Array(base.prefix(8))
-        }
-        let searched = MockDataService.allContent.filter { film in
-            !topFiveFilms.contains(where: { $0.id == film.id }) &&
-            film.title.localizedCaseInsensitiveContains(filmSearchText)
-        }
-        return Array(searched.prefix(10))
+        }.prefix(8).map { $0 }
     }
 
     private func selectedFilmRow(_ film: Film, index: Int) -> some View {

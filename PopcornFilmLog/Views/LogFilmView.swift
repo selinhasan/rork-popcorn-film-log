@@ -13,18 +13,10 @@ struct LogFilmView: View {
     @State private var showGoldenConfirm = false
     @State private var selectedListId: String?
     @State private var watchDate: Date = Date()
+    @State private var searchTask: Task<Void, Never>?
     @FocusState private var searchFocused: Bool
 
     var preselectedFilm: Film? = nil
-
-    private var filteredFilms: [Film] {
-        if searchText.isEmpty {
-            return MockDataService.popularFilms
-        }
-        return MockDataService.allContent.filter {
-            $0.title.localizedCaseInsensitiveContains(searchText)
-        }
-    }
 
     var body: some View {
         NavigationStack {
@@ -71,6 +63,13 @@ struct LogFilmView: View {
         }
     }
 
+    private var displayedFilms: [Film] {
+        if searchText.isEmpty {
+            return viewModel.trendingFilms.isEmpty ? MockDataService.popularFilms : viewModel.trendingFilms
+        }
+        return viewModel.searchResults
+    }
+
     private var searchView: some View {
         VStack(spacing: 0) {
             HStack(spacing: 10) {
@@ -82,6 +81,7 @@ struct LogFilmView: View {
                 if !searchText.isEmpty {
                     Button {
                         searchText = ""
+                        viewModel.searchResults = []
                     } label: {
                         Image(systemName: "xmark.circle.fill")
                             .foregroundStyle(PopcornTheme.subtleGray)
@@ -92,6 +92,14 @@ struct LogFilmView: View {
             .background(Color.white, in: .rect(cornerRadius: 12))
             .padding(.horizontal)
             .padding(.top, 8)
+            .onChange(of: searchText) { _, newValue in
+                searchTask?.cancel()
+                searchTask = Task {
+                    try? await Task.sleep(for: .milliseconds(400))
+                    guard !Task.isCancelled else { return }
+                    await viewModel.searchFilms(query: newValue)
+                }
+            }
 
             if searchText.isEmpty {
                 Text("Popular right now")
@@ -102,23 +110,30 @@ struct LogFilmView: View {
                     .padding(.top, 20)
             }
 
-            ScrollView {
-                LazyVStack(spacing: 8) {
-                    ForEach(filteredFilms) { film in
-                        Button {
-                            withAnimation(.spring(duration: 0.3)) {
-                                selectedFilm = film
-                                showTVField = film.isTV
+            if viewModel.isSearching {
+                ProgressView()
+                    .tint(PopcornTheme.warmRed)
+                    .padding(.top, 40)
+                Spacer()
+            } else {
+                ScrollView {
+                    LazyVStack(spacing: 8) {
+                        ForEach(displayedFilms) { film in
+                            Button {
+                                withAnimation(.spring(duration: 0.3)) {
+                                    selectedFilm = film
+                                    showTVField = film.isTV
+                                }
+                            } label: {
+                                filmSearchRow(film)
                             }
-                        } label: {
-                            filmSearchRow(film)
                         }
                     }
+                    .padding(.horizontal)
+                    .padding(.top, 8)
                 }
-                .padding(.horizontal)
-                .padding(.top, 8)
+                .scrollDismissesKeyboard(.interactively)
             }
-            .scrollDismissesKeyboard(.interactively)
         }
         .onAppear { searchFocused = true }
     }
@@ -217,10 +232,14 @@ struct LogFilmView: View {
 
                             HStack(spacing: 8) {
                                 Text(film.year)
-                                Text("·")
-                                Text(film.runtime)
-                                Text("·")
-                                Text(film.director)
+                                if !film.runtime.isEmpty {
+                                    Text("·")
+                                    Text(film.runtime)
+                                }
+                                if !film.director.isEmpty {
+                                    Text("·")
+                                    Text(film.director)
+                                }
                             }
                             .font(.subheadline)
                             .foregroundStyle(PopcornTheme.sepiaBrown)
@@ -300,8 +319,6 @@ struct LogFilmView: View {
                                         )
                                 }
                             }
-
-
                         }
                         .padding(.vertical, 8)
 

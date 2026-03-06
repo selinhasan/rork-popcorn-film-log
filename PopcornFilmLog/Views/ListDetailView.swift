@@ -196,21 +196,32 @@ struct AddFilmsToListSheet: View {
     @Environment(\.dismiss) private var dismiss
     @Binding var list: FilmList
     @State private var searchText = ""
+    @State private var searchTask: Task<Void, Never>?
 
     private var availableFilms: [Film] {
-        let logged = viewModel.diaryEntries.map(\.film)
-        let all = MockDataService.allContent
-        var combined = logged + all.filter { film in !logged.contains { $0.id == film.id } }
-        combined = combined.filter { film in !list.films.contains { $0.id == film.id } }
         if !searchText.isEmpty {
-            combined = combined.filter { $0.title.localizedCaseInsensitiveContains(searchText) }
+            return viewModel.searchResults.filter { film in
+                !list.films.contains { $0.id == film.id }
+            }
         }
+        let logged = viewModel.diaryEntries.map(\.film)
+        let trending = viewModel.trendingFilms
+        var combined = logged + trending.filter { film in !logged.contains { $0.id == film.id } }
+        combined = combined.filter { film in !list.films.contains { $0.id == film.id } }
         return Array(combined.prefix(20))
     }
 
     var body: some View {
         NavigationStack {
             List {
+                if viewModel.isSearching {
+                    HStack {
+                        Spacer()
+                        ProgressView()
+                            .tint(PopcornTheme.warmRed)
+                        Spacer()
+                    }
+                }
                 ForEach(availableFilms) { film in
                     Button {
                         withAnimation {
@@ -244,6 +255,14 @@ struct AddFilmsToListSheet: View {
                 }
             }
             .searchable(text: $searchText, prompt: "Search films")
+            .onChange(of: searchText) { _, newValue in
+                searchTask?.cancel()
+                searchTask = Task {
+                    try? await Task.sleep(for: .milliseconds(400))
+                    guard !Task.isCancelled else { return }
+                    await viewModel.searchFilms(query: newValue)
+                }
+            }
             .navigationTitle("Add Films")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

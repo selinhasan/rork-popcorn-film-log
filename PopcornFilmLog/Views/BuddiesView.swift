@@ -441,13 +441,16 @@ struct NewPostSheet: View {
     @State private var showFilmPicker = false
     @State private var mentionedFilm: Film?
     @State private var filmSearchText = ""
+    @State private var searchTask: Task<Void, Never>?
     @FocusState private var isFocused: Bool
 
     private var searchedFilms: [Film] {
-        if filmSearchText.isEmpty { return MockDataService.popularFilms.prefix(8).map { $0 } }
-        return MockDataService.allContent.filter {
-            $0.title.localizedCaseInsensitiveContains(filmSearchText)
+        if filmSearchText.isEmpty {
+            return viewModel.trendingFilms.isEmpty
+                ? MockDataService.popularFilms.prefix(8).map { $0 }
+                : Array(viewModel.trendingFilms.prefix(8))
         }
+        return viewModel.searchResults
     }
 
     var body: some View {
@@ -537,6 +540,24 @@ struct NewPostSheet: View {
                                 .padding(10)
                                 .background(Color.white, in: .rect(cornerRadius: 8))
                                 .padding(.horizontal)
+                                .onChange(of: filmSearchText) { _, newValue in
+                                    searchTask?.cancel()
+                                    searchTask = Task {
+                                        try? await Task.sleep(for: .milliseconds(400))
+                                        guard !Task.isCancelled else { return }
+                                        await viewModel.searchFilms(query: newValue)
+                                    }
+                                }
+
+                                if viewModel.isSearching {
+                                    HStack {
+                                        Spacer()
+                                        ProgressView()
+                                            .tint(PopcornTheme.warmRed)
+                                        Spacer()
+                                    }
+                                    .padding(.top, 8)
+                                }
 
                                 ForEach(searchedFilms.prefix(5)) { film in
                                     Button {
