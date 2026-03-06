@@ -6,25 +6,25 @@ struct AvatarView: View {
     var customURL: String? = nil
 
     static let avatarURLs: [String: String] = [
-        "avatar_1": "https://image.tmdb.org/t/p/w500/fuTEPMsBtV1zE98ujPONbKiYDc2.jpg",
-        "avatar_2": "https://image.tmdb.org/t/p/w500/cckcYc2v0yh1tc9QjRelptcOBko.jpg",
-        "avatar_3": "https://image.tmdb.org/t/p/w500/xuxgPXyv6KjUHIM8cZaxx4ry25L.jpg",
-        "avatar_4": "https://image.tmdb.org/t/p/w500/resiaRfWvj4N84TgJi9DPOafCpq.jpg",
-        "avatar_5": "https://image.tmdb.org/t/p/w500/xD4jTA3KmVp5Rq3aHcymL9DUGjD.jpg",
-        "avatar_6": "https://image.tmdb.org/t/p/w500/utKPqWm9MAcL6NqN0Kd71dWUmXM.jpg",
-        "avatar_7": "https://image.tmdb.org/t/p/w500/jPsLqiYGSofU4s6BjrxnefMfabb.jpg",
-        "avatar_8": "https://image.tmdb.org/t/p/w500/m8HAAjq1T75JypKk0v1FFQn4ysZ.jpg",
+        "avatar_1": "https://image.tmdb.org/t/p/w780/tSPT36ZKlP2WVHJLM4cQPLSzv3b.jpg",
+        "avatar_2": "https://image.tmdb.org/t/p/w780/xRyINp9KfMLVjRiO5nCsoRDdvvF.jpg",
+        "avatar_3": "https://image.tmdb.org/t/p/w780/96hiUXEuYsu4tcnvlaY8tEMFM0m.jpg",
+        "avatar_4": "https://image.tmdb.org/t/p/w780/iffzIhuLAO38Po6sh1s6ZEVwlNL.jpg",
+        "avatar_5": "https://image.tmdb.org/t/p/w780/AmR3JG1VQVxU8TfAvljUhfSFUOx.jpg",
+        "avatar_6": "https://image.tmdb.org/t/p/w780/aYcnDyLMnpKce1FOYUpZrXtgUye.jpg",
+        "avatar_7": "https://image.tmdb.org/t/p/w780/9uddYYTNcLWpzUkl5iw1RUYhLhY.jpg",
+        "avatar_8": "https://image.tmdb.org/t/p/w780/jhk6D8pim3yaByu1801kMoxXFaX.jpg",
     ]
 
     static let avatarLabels: [String: String] = [
         "avatar_1": "Vito Corleone",
         "avatar_2": "Tyler Durden",
         "avatar_3": "Mia Wallace",
-        "avatar_4": "Clarice Starling",
-        "avatar_5": "Trinity",
-        "avatar_6": "Princess Leia",
-        "avatar_7": "Red",
-        "avatar_8": "Tony Montana",
+        "avatar_4": "The Bride",
+        "avatar_5": "Ripley",
+        "avatar_6": "Clarice Starling",
+        "avatar_7": "Travis Bickle",
+        "avatar_8": "Maximus",
     ]
 
     private var avatarImageURL: URL? {
