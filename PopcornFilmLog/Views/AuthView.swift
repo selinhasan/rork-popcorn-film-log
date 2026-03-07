@@ -11,13 +11,13 @@ struct AuthView: View {
     @State private var errorMessage = ""
     @State private var failedLoginAttempts: Int = 0
     @State private var showForgotPassword = false
-    @State private var showEmailExistsAlert = false
     @State private var forgotPasswordEmail = ""
     @State private var showResetConfirmation = false
     @State private var isLoading = false
     @State private var showPassword = false
     @State private var showConfirmPassword = false
     @State private var authSuccess = false
+    @State private var showEmailExistsAlert = false
 
     @State private var usernameError: String?
     @State private var emailError: String?
@@ -113,7 +113,6 @@ struct AuthView: View {
                                 .submitLabel(.next)
                                 .onSubmit { focusedField = .email }
                                 .onChange(of: username) { _, _ in validateUsername() }
-                                .accessibilityLabel("Username")
                         }
                     }
                     if let error = usernameError {
@@ -137,7 +136,6 @@ struct AuthView: View {
                             .submitLabel(.next)
                             .onSubmit { focusedField = .password }
                             .onChange(of: email) { _, _ in validateEmail() }
-                            .accessibilityLabel(isSignUp ? "Email address" : "Email or username")
                     }
                 }
                 if let error = emailError {
@@ -169,7 +167,6 @@ struct AuthView: View {
                             }
                         }
                         .onChange(of: password) { _, _ in validatePassword() }
-                        .accessibilityLabel("Password")
 
                         Button {
                             showPassword.toggle()
@@ -178,7 +175,6 @@ struct AuthView: View {
                                 .foregroundStyle(PopcornTheme.subtleGray)
                                 .font(.subheadline)
                         }
-                        .accessibilityLabel(showPassword ? "Hide password" : "Show password")
                     }
                 }
                 if let error = passwordError {
@@ -208,7 +204,6 @@ struct AuthView: View {
                             .submitLabel(.done)
                             .onSubmit { handleAuth() }
                             .onChange(of: confirmPassword) { _, _ in validateConfirmPassword() }
-                            .accessibilityLabel("Confirm password")
 
                             Button {
                                 showConfirmPassword.toggle()
@@ -217,7 +212,6 @@ struct AuthView: View {
                                     .foregroundStyle(PopcornTheme.subtleGray)
                                     .font(.subheadline)
                             }
-                            .accessibilityLabel(showConfirmPassword ? "Hide confirm password" : "Show confirm password")
                         }
                     }
                     if let error = confirmPasswordError {
@@ -261,7 +255,6 @@ struct AuthView: View {
         case 0: return .red
         case 1: return .orange
         case 2: return .yellow
-        case 3: return PopcornTheme.freshGreen
         default: return PopcornTheme.freshGreen
         }
     }
@@ -271,8 +264,7 @@ struct AuthView: View {
         case 0: return "Weak"
         case 1: return "Fair"
         case 2: return "Good"
-        case 3...4: return "Strong"
-        default: return ""
+        default: return "Strong"
         }
     }
 
@@ -384,17 +376,13 @@ struct AuthView: View {
         if isSignUp {
             return !username.isEmpty && !email.isEmpty && !password.isEmpty && !confirmPassword.isEmpty &&
                    usernameError == nil && emailError == nil && passwordError == nil && confirmPasswordError == nil
-        } else {
-            return !email.isEmpty && !password.isEmpty
         }
+        return !email.isEmpty && !password.isEmpty
     }
 
     private func validateUsername() {
         let trimmed = username.trimmingCharacters(in: .whitespacesAndNewlines)
-        if trimmed.isEmpty {
-            usernameError = nil
-            return
-        }
+        if trimmed.isEmpty { usernameError = nil; return }
         if trimmed.count < 3 {
             usernameError = "Username must be at least 3 characters"
         } else if trimmed.count > 20 {
@@ -419,25 +407,18 @@ struct AuthView: View {
     }
 
     private func validatePassword() {
-        let trimmed = password
-        if trimmed.isEmpty { passwordError = nil; return }
-        if isSignUp && trimmed.count < 6 {
+        if password.isEmpty { passwordError = nil; return }
+        if isSignUp && password.count < 6 {
             passwordError = "Password must be at least 6 characters"
         } else {
             passwordError = nil
         }
-        if !confirmPassword.isEmpty {
-            validateConfirmPassword()
-        }
+        if !confirmPassword.isEmpty { validateConfirmPassword() }
     }
 
     private func validateConfirmPassword() {
         if confirmPassword.isEmpty { confirmPasswordError = nil; return }
-        if confirmPassword != password {
-            confirmPasswordError = "Passwords don't match"
-        } else {
-            confirmPasswordError = nil
-        }
+        confirmPasswordError = confirmPassword != password ? "Passwords don't match" : nil
     }
 
     private func clearErrors() {
@@ -457,10 +438,7 @@ struct AuthView: View {
             validateConfirmPassword()
 
             guard usernameError == nil, emailError == nil, passwordError == nil, confirmPasswordError == nil else { return }
-            guard !username.isEmpty else { showValidation("Please enter a username."); return }
-            guard !email.isEmpty else { showValidation("Please enter your email."); return }
-            guard !password.isEmpty else { showValidation("Please enter a password."); return }
-            guard !confirmPassword.isEmpty else { showValidation("Please confirm your password."); return }
+            guard !username.isEmpty, !email.isEmpty, !password.isEmpty, !confirmPassword.isEmpty else { return }
 
             isLoading = true
             Task {
@@ -468,23 +446,14 @@ struct AuthView: View {
                     try await viewModel.signUp(username: username, email: email, password: password)
                     authSuccess.toggle()
                 } catch let error as AuthError {
-                    if case .emailExists = error {
-                        withAnimation(.spring(duration: 0.35)) {
-                            showEmailExistsAlert = true
-                        }
-                    } else if case .usernameExists = error {
-                        usernameError = "This username is already taken"
-                    } else {
-                        showValidation(error.localizedDescription)
-                    }
+                    handleAuthError(error)
                 } catch {
                     showValidation("Connection error. Please check your internet and try again.")
                 }
                 isLoading = false
             }
         } else {
-            guard !email.isEmpty else { showValidation("Please enter your email or username."); return }
-            guard !password.isEmpty else { showValidation("Please enter your password."); return }
+            guard !email.isEmpty, !password.isEmpty else { return }
 
             isLoading = true
             Task {
@@ -492,17 +461,30 @@ struct AuthView: View {
                     try await viewModel.logIn(email: email, password: password)
                     authSuccess.toggle()
                 } catch let error as AuthError {
-                    if case .invalidCredentials = error {
-                        failedLoginAttempts += 1
-                        showValidation("Incorrect email or password. Please try again.")
-                    } else {
-                        showValidation(error.localizedDescription)
-                    }
+                    handleAuthError(error)
                 } catch {
                     showValidation("Connection error. Please check your internet and try again.")
                 }
                 isLoading = false
             }
+        }
+    }
+
+    private func handleAuthError(_ error: AuthError) {
+        switch error {
+        case .emailExists:
+            withAnimation(.spring(duration: 0.35)) {
+                showEmailExistsAlert = true
+            }
+        case .usernameExists:
+            usernameError = "This username is already taken"
+        case .invalidCredentials:
+            failedLoginAttempts += 1
+            showValidation("Incorrect email or password. Please try again.")
+        case .accountLocked:
+            showValidation(error.localizedDescription)
+        default:
+            showValidation(error.localizedDescription)
         }
     }
 
@@ -551,7 +533,6 @@ struct AuthView: View {
                             .keyboardType(.emailAddress)
                             .autocorrectionDisabled()
                             .textInputAutocapitalization(.never)
-                            .accessibilityLabel("Email for password reset")
                     }
                 }
                 .padding(.horizontal)

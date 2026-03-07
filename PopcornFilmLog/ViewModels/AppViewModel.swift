@@ -23,7 +23,7 @@ class AppViewModel {
     var isSyncing = false
 
     private let tmdb = TMDbService.shared
-    private let auth = AuthServiceClient.shared
+    private let auth = AuthClient.shared
     private let tokenKey = "auth_token"
 
     init() {
@@ -97,46 +97,36 @@ class AppViewModel {
         }
     }
 
-    // MARK: - Server Auth
+    // MARK: - Auth
 
     func signUp(username: String, email: String, password: String) async throws {
         authError = nil
-        do {
-            let response = try await auth.register(username: username, email: email, password: password)
-            KeychainService.save(key: tokenKey, value: response.token)
-            let user = mapServerUser(response.user)
-            currentUser = user
-            isLoggedIn = true
-            saveUserLocally()
-            loadBuddies()
-        } catch let error as AuthError {
-            authError = error.localizedDescription
-            throw error
-        }
+        let response = try await auth.register(username: username, email: email, password: password)
+        KeychainService.save(key: tokenKey, value: response.token)
+        let user = mapServerUser(response.user)
+        currentUser = user
+        isLoggedIn = true
+        saveUserLocally()
+        loadBuddies()
     }
 
     func logIn(email: String, password: String) async throws {
         authError = nil
-        do {
-            let response = try await auth.login(email: email, password: password)
-            KeychainService.save(key: tokenKey, value: response.token)
-            let user = mapServerUser(response.user)
-            currentUser = user
-            isLoggedIn = true
-            hasCompletedOnboarding = true
-            UserDefaults.standard.set(true, forKey: "hasCompletedOnboarding")
+        let response = try await auth.login(email: email, password: password)
+        KeychainService.save(key: tokenKey, value: response.token)
+        let user = mapServerUser(response.user)
+        currentUser = user
+        isLoggedIn = true
+        hasCompletedOnboarding = true
+        UserDefaults.standard.set(true, forKey: "hasCompletedOnboarding")
 
-            diaryEntries = response.user.diaryEntries
-            filmLists = response.user.filmLists
+        diaryEntries = response.user.diaryEntries
+        filmLists = response.user.filmLists
 
-            saveUserLocally()
-            saveLocalDiary()
-            saveLocalLists()
-            loadBuddies()
-        } catch let error as AuthError {
-            authError = error.localizedDescription
-            throw error
-        }
+        saveUserLocally()
+        saveLocalDiary()
+        saveLocalLists()
+        loadBuddies()
     }
 
     func logOut() {
@@ -201,11 +191,7 @@ class AppViewModel {
 
     func setGoldenPopcorn(filmId: String) {
         for i in diaryEntries.indices {
-            if diaryEntries[i].film.id == filmId {
-                diaryEntries[i].isGoldenPopcorn = true
-            } else {
-                diaryEntries[i].isGoldenPopcorn = false
-            }
+            diaryEntries[i].isGoldenPopcorn = diaryEntries[i].film.id == filmId
         }
         currentUser?.goldenPopcornFilmId = filmId
         saveLocalDiary()
@@ -426,7 +412,7 @@ class AppViewModel {
         )
     }
 
-    // MARK: - Private Helpers
+    // MARK: - Private
 
     private func parseRuntime(_ runtime: String) -> Int {
         var minutes = 0
@@ -449,7 +435,7 @@ class AppViewModel {
         return minutes
     }
 
-    private func mapServerUser(_ serverUser: ServerUserProfile) -> UserProfile {
+    private func mapServerUser(_ serverUser: ServerUser) -> UserProfile {
         let dateFormatter = ISO8601DateFormatter()
         let joinDate = dateFormatter.date(from: serverUser.joinDate) ?? Date()
 
@@ -505,13 +491,11 @@ class AppViewModel {
             }
 
             if !user.topFiveFilms.isEmpty {
-                let filmsData = user.topFiveFilms.map { filmToDict($0) }
-                updates["topFiveFilms"] = filmsData
+                updates["topFiveFilms"] = user.topFiveFilms.map { filmToDict($0) }
             }
 
             if !user.watchlist.isEmpty {
-                let watchlistData = user.watchlist.map { filmToDict($0) }
-                updates["watchlist"] = watchlistData
+                updates["watchlist"] = user.watchlist.map { filmToDict($0) }
             }
 
             updates["buddyIds"] = user.buddyIds
