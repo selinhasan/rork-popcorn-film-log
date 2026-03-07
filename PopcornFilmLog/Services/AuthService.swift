@@ -88,7 +88,7 @@ nonisolated final class AuthServiceClient: Sendable {
         if url.isEmpty {
             return ""
         }
-        return url + "/api/trpc"
+        return url + "/trpc"
     }
 
     private func makeRequest(
