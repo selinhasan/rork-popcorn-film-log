@@ -137,15 +137,14 @@ nonisolated final class AuthServiceClient: Sendable {
 
         if httpResponse.statusCode >= 400 {
             if let errorBody = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
-                if let errorObj = errorBody["error"] as? [String: Any],
-                   let errorMsg = errorObj["message"] as? String {
-                    throw mapServerError(errorMsg)
-                }
-                if let errorArray = errorBody as? [String: Any],
-                   let firstError = (errorArray["error"] as? [String: Any]),
-                   let jsonObj = firstError["json"] as? [String: Any],
-                   let message = jsonObj["message"] as? String {
-                    throw mapServerError(message)
+                if let errorObj = errorBody["error"] as? [String: Any] {
+                    if let jsonObj = errorObj["json"] as? [String: Any],
+                       let errorMsg = jsonObj["message"] as? String {
+                        throw mapServerError(errorMsg)
+                    }
+                    if let errorMsg = errorObj["message"] as? String {
+                        throw mapServerError(errorMsg)
+                    }
                 }
             }
             if let rawString = String(data: data, encoding: .utf8), rawString.contains("message") {
@@ -167,11 +166,15 @@ nonisolated final class AuthServiceClient: Sendable {
     }
 
     private nonisolated struct TRPCResult<T: Codable & Sendable>: Codable, Sendable {
-        let result: TRPCData<T>
+        let result: TRPCResultData<T>
     }
 
-    private nonisolated struct TRPCData<T: Codable & Sendable>: Codable, Sendable {
-        let data: T
+    private nonisolated struct TRPCResultData<T: Codable & Sendable>: Codable, Sendable {
+        let data: TRPCJsonWrapper<T>
+    }
+
+    private nonisolated struct TRPCJsonWrapper<T: Codable & Sendable>: Codable, Sendable {
+        let json: T
     }
 
     func register(username: String, email: String, password: String) async throws -> AuthResponse {
@@ -182,7 +185,7 @@ nonisolated final class AuthServiceClient: Sendable {
         ]
         let data = try await makeRequest(endpoint: "auth.register", body: body)
         let result = try decoder.decode(TRPCResult<AuthResponse>.self, from: data)
-        return result.result.data
+        return result.result.data.json
     }
 
     func login(email: String, password: String) async throws -> AuthResponse {
@@ -192,19 +195,19 @@ nonisolated final class AuthServiceClient: Sendable {
         ]
         let data = try await makeRequest(endpoint: "auth.login", body: body)
         let result = try decoder.decode(TRPCResult<AuthResponse>.self, from: data)
-        return result.result.data
+        return result.result.data.json
     }
 
     func getProfile(token: String) async throws -> ProfileResponse {
         let data = try await makeRequest(endpoint: "auth.getProfile", method: "GET", token: token)
         let result = try decoder.decode(TRPCResult<ProfileResponse>.self, from: data)
-        return result.result.data
+        return result.result.data.json
     }
 
     func updateProfile(token: String, updates: [String: Any]) async throws -> ProfileResponse {
         let data = try await makeRequest(endpoint: "auth.updateProfile", body: updates, token: token)
         let result = try decoder.decode(TRPCResult<ProfileResponse>.self, from: data)
-        return result.result.data
+        return result.result.data.json
     }
 
     func syncData(token: String, diaryEntries: [[String: Any]]?, filmLists: [[String: Any]]?, watchlist: [[String: Any]]?) async throws {
@@ -218,7 +221,7 @@ nonisolated final class AuthServiceClient: Sendable {
     func getData(token: String) async throws -> DataResponse {
         let data = try await makeRequest(endpoint: "auth.getData", method: "GET", token: token)
         let result = try decoder.decode(TRPCResult<DataResponse>.self, from: data)
-        return result.result.data
+        return result.result.data.json
     }
 
     func changePassword(token: String, currentPassword: String, newPassword: String) async throws {
@@ -233,7 +236,7 @@ nonisolated final class AuthServiceClient: Sendable {
         let body: [String: Any] = ["email": email]
         let data = try await makeRequest(endpoint: "auth.requestPasswordReset", body: body)
         let result = try decoder.decode(TRPCResult<PasswordResetResponse>.self, from: data)
-        return result.result.data
+        return result.result.data.json
     }
 
     func deleteAccount(token: String) async throws {
