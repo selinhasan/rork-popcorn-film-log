@@ -475,7 +475,7 @@ struct AuthView: View {
                     } else if case .usernameExists = error {
                         usernameError = "This username is already taken"
                     } else {
-                        showValidation(error.localizedDescription ?? "Registration failed. Please try again.")
+                        showValidation(error.localizedDescription)
                     }
                 } catch {
                     showValidation("Connection error. Please check your internet and try again.")
@@ -496,7 +496,7 @@ struct AuthView: View {
                         failedLoginAttempts += 1
                         showValidation("Incorrect email or password. Please try again.")
                     } else {
-                        showValidation(error.localizedDescription ?? "Login failed. Please try again.")
+                        showValidation(error.localizedDescription)
                     }
                 } catch {
                     showValidation("Connection error. Please check your internet and try again.")

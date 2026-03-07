@@ -155,11 +155,11 @@ nonisolated final class AuthServiceClient: Sendable {
         return .serverError(message)
     }
 
-    private struct TRPCResult<T: Codable & Sendable>: Codable, Sendable {
+    private nonisolated struct TRPCResult<T: Codable & Sendable>: Codable, Sendable {
         let result: TRPCData<T>
     }
 
-    private struct TRPCData<T: Codable & Sendable>: Codable, Sendable {
+    private nonisolated struct TRPCData<T: Codable & Sendable>: Codable, Sendable {
         let data: T
     }
 

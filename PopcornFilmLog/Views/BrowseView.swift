@@ -475,11 +475,11 @@ struct FilmDetailSheet: View {
                         .foregroundStyle(PopcornTheme.sepiaBrown)
                 }
             }
+            .navigationDestination(for: LogEntry.self) { entry in
+                ReviewDetailView(entry: entry)
+            }
         }
         .presentationDragIndicator(.visible)
-        .navigationDestination(for: LogEntry.self) { entry in
-            ReviewDetailView(entry: entry)
-        }
         .sheet(isPresented: $showLogSheet) {
             LogFilmView(preselectedFilm: displayFilm)
         }
