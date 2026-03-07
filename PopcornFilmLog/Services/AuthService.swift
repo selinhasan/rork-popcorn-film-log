@@ -136,9 +136,20 @@ nonisolated final class AuthServiceClient: Sendable {
         }
 
         if httpResponse.statusCode >= 400 {
-            if let errorBody = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-               let errorMsg = (errorBody["error"] as? [String: Any])?["message"] as? String {
-                throw mapServerError(errorMsg)
+            if let errorBody = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+                if let errorObj = errorBody["error"] as? [String: Any],
+                   let errorMsg = errorObj["message"] as? String {
+                    throw mapServerError(errorMsg)
+                }
+                if let errorArray = errorBody as? [String: Any],
+                   let firstError = (errorArray["error"] as? [String: Any]),
+                   let jsonObj = firstError["json"] as? [String: Any],
+                   let message = jsonObj["message"] as? String {
+                    throw mapServerError(message)
+                }
+            }
+            if let rawString = String(data: data, encoding: .utf8), rawString.contains("message") {
+                throw mapServerError(rawString)
             }
             throw AuthError.serverError("Server error (\(httpResponse.statusCode))")
         }
