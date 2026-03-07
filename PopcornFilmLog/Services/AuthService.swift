@@ -105,7 +105,8 @@ nonisolated final class AuthServiceClient: Sendable {
         var urlString = "\(baseURL)/\(endpoint)"
 
         if !isMutation, let body {
-            let jsonData = try JSONSerialization.data(withJSONObject: body)
+            let wrapped: [String: Any] = ["json": body]
+            let jsonData = try JSONSerialization.data(withJSONObject: wrapped)
             let jsonString = String(data: jsonData, encoding: .utf8) ?? "{}"
             let encoded = jsonString.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
             urlString += "?input=\(encoded)"
@@ -124,7 +125,8 @@ nonisolated final class AuthServiceClient: Sendable {
         }
 
         if isMutation, let body {
-            request.httpBody = try JSONSerialization.data(withJSONObject: body)
+            let wrapped: [String: Any] = ["json": body]
+            request.httpBody = try JSONSerialization.data(withJSONObject: wrapped)
         }
 
         let (data, response) = try await session.data(for: request)
