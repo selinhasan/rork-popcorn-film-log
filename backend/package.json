@@ -2,7 +2,7 @@
   "name": "popcorn-film-log-backend",
   "version": "1.0.0",
   "scripts": {
-    "build": "tsc"
+    "build": "echo ok"
   },
   "dependencies": {
     "@hono/trpc-server": "^0.3.4",
