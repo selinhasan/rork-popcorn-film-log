@@ -1,6 +1,6 @@
 {
   "outputDirectory": ".",
   "rewrites": [
-    { "source": "/api/trpc/(.*)", "destination": "/api/index" }
+    { "source": "/(.*)", "destination": "/api" }
   ]
 }
