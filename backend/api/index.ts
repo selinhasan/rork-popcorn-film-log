@@ -2,4 +2,4 @@ import { handle } from "hono/vercel";
 import app from "../hono";
 
 export default handle(app);
-export const runtime = "edge"; 
+export const runtime = "nodejs";
