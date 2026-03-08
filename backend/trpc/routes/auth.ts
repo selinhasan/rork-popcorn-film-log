@@ -4,77 +4,44 @@ import jwt from "jsonwebtoken";
 import { v4 as uuidv4 } from "uuid";
 import { TRPCError } from "@trpc/server";
 import { createTRPCRouter, publicProcedure, protectedProcedure } from "../create-context";
+import { supabase } from "../../lib/supabase";
 
 const JWT_SECRET = process.env.JWT_SECRET || "popcorn-film-log-jwt-secret-2026";
 const ACCESS_TOKEN_EXPIRY = "7d";
 const BCRYPT_ROUNDS = 12;
 
-interface UserRecord {
-  id: string;
-  username: string;
-  email: string;
-  passwordHash: string;
-  profileImageName: string;
-  customProfileImageURL: string | null;
-  bio: string;
-  topFiveFilms: any[];
-  goldenPopcornFilmId: string | null;
-  buddyIds: string[];
-  watchlist: any[];
-  diaryEntries: any[];
-  filmLists: any[];
-  joinDate: string;
-  lastLoginAt: string;
-  status: "active" | "locked" | "suspended";
-  loginAttempts: number;
-  lastFailedLogin: string | null;
-  createdAt: string;
-  updatedAt: string;
-}
-
-const users = new Map<string, UserRecord>();
-const emailIndex = new Map<string, string>();
-const usernameIndex = new Map<string, string>();
-
 function generateToken(userId: string): string {
   return jwt.sign({ userId }, JWT_SECRET, { expiresIn: ACCESS_TOKEN_EXPIRY });
 }
 
-function sanitizeUser(user: UserRecord) {
+function sanitizeUser(user: any) {
   return {
     id: user.id,
     username: user.username,
     email: user.email,
-    profileImageName: user.profileImageName,
-    customProfileImageURL: user.customProfileImageURL,
+    profileImageName: user.profile_image_name,
+    customProfileImageURL: user.custom_profile_image_url,
     bio: user.bio,
-    topFiveFilms: user.topFiveFilms,
-    goldenPopcornFilmId: user.goldenPopcornFilmId,
-    buddyIds: user.buddyIds,
-    watchlist: user.watchlist,
-    diaryEntries: user.diaryEntries,
-    filmLists: user.filmLists,
-    joinDate: user.joinDate,
+    topFiveFilms: user.top_five_films || [],
+    goldenPopcornFilmId: user.golden_popcorn_film_id,
+    buddyIds: user.buddy_ids || [],
+    watchlist: user.watchlist || [],
+    diaryEntries: user.diary_entries || [],
+    filmLists: user.film_lists || [],
+    joinDate: user.created_at,
   };
 }
 
-function isAccountLocked(user: UserRecord): boolean {
-  if (user.status === "locked" && user.lastFailedLogin) {
+function isAccountLocked(user: any): boolean {
+  if (user.status === "locked" && user.last_failed_login) {
     const lockDuration = 15 * 60 * 1000;
-    const elapsed = Date.now() - new Date(user.lastFailedLogin).getTime();
+    const elapsed = Date.now() - new Date(user.last_failed_login).getTime();
     if (elapsed > lockDuration) {
-      user.status = "active";
-      user.loginAttempts = 0;
       return false;
     }
     return true;
   }
   return user.status === "suspended";
-}
-
-function validatePasswordStrength(password: string): string | null {
-  if (password.length < 6) return "Password must be at least 6 characters";
-  return null;
 }
 
 export const authRouter = createTRPCRouter({
@@ -90,53 +57,63 @@ export const authRouter = createTRPCRouter({
       const emailLower = input.email.toLowerCase().trim();
       const usernameLower = input.username.toLowerCase().trim();
 
-      if (emailIndex.has(emailLower)) {
+      const { data: existingEmail } = await supabase
+        .from("users")
+        .select("id")
+        .eq("email", emailLower)
+        .maybeSingle();
+
+      if (existingEmail) {
         throw new TRPCError({ code: "CONFLICT", message: "EMAIL_EXISTS" });
       }
 
-      if (usernameIndex.has(usernameLower)) {
-        throw new TRPCError({ code: "CONFLICT", message: "USERNAME_EXISTS" });
-      }
+      const { data: existingUsername } = await supabase
+        .from("users")
+        .select("id")
+        .eq("username_lower", usernameLower)
+        .maybeSingle();
 
-      const strengthError = validatePasswordStrength(input.password);
-      if (strengthError) {
-        throw new TRPCError({ code: "BAD_REQUEST", message: strengthError });
+      if (existingUsername) {
+        throw new TRPCError({ code: "CONFLICT", message: "USERNAME_EXISTS" });
       }
 
       const passwordHash = await bcrypt.hash(input.password, BCRYPT_ROUNDS);
       const userId = uuidv4();
       const now = new Date().toISOString();
 
-      const user: UserRecord = {
-        id: userId,
-        username: input.username.trim(),
-        email: emailLower,
-        passwordHash,
-        profileImageName: "avatar_1",
-        customProfileImageURL: null,
-        bio: "",
-        topFiveFilms: [],
-        goldenPopcornFilmId: null,
-        buddyIds: [],
-        watchlist: [],
-        diaryEntries: [],
-        filmLists: [],
-        joinDate: now,
-        lastLoginAt: now,
-        status: "active",
-        loginAttempts: 0,
-        lastFailedLogin: null,
-        createdAt: now,
-        updatedAt: now,
-      };
+      const { data: newUser, error } = await supabase
+        .from("users")
+        .insert({
+          id: userId,
+          username: input.username.trim(),
+          username_lower: usernameLower,
+          email: emailLower,
+          password_hash: passwordHash,
+          profile_image_name: "avatar_1",
+          custom_profile_image_url: null,
+          bio: "",
+          top_five_films: [],
+          golden_popcorn_film_id: null,
+          buddy_ids: [],
+          watchlist: [],
+          diary_entries: [],
+          film_lists: [],
+          status: "active",
+          login_attempts: 0,
+          last_failed_login: null,
+          last_login_at: now,
+          created_at: now,
+          updated_at: now,
+        })
+        .select()
+        .single();
 
-      users.set(userId, user);
-      emailIndex.set(emailLower, userId);
-      usernameIndex.set(usernameLower, userId);
+      if (error || !newUser) {
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to create account" });
+      }
 
       const token = generateToken(userId);
-
-      return { token, user: sanitizeUser(user) };
+      return { token, user: sanitizeUser(newUser) };
     }),
 
   login: publicProcedure
@@ -149,51 +126,77 @@ export const authRouter = createTRPCRouter({
     .mutation(async ({ input }) => {
       const identifier = input.email.toLowerCase().trim();
 
-      let userId = emailIndex.get(identifier);
-      if (!userId) {
-        userId = usernameIndex.get(identifier);
+      let { data: user } = await supabase
+        .from("users")
+        .select("*")
+        .eq("email", identifier)
+        .maybeSingle();
+
+      if (!user) {
+        const { data: byUsername } = await supabase
+          .from("users")
+          .select("*")
+          .eq("username_lower", identifier)
+          .maybeSingle();
+        user = byUsername;
       }
 
-      if (!userId) {
-        throw new TRPCError({ code: "UNAUTHORIZED", message: "INVALID_CREDENTIALS" });
-      }
-
-      const user = users.get(userId);
       if (!user) {
         throw new TRPCError({ code: "UNAUTHORIZED", message: "INVALID_CREDENTIALS" });
       }
 
       if (isAccountLocked(user)) {
-        throw new TRPCError({
-          code: "FORBIDDEN",
-          message: "ACCOUNT_LOCKED",
-        });
+        if (user.status === "locked") {
+          const lockDuration = 15 * 60 * 1000;
+          const elapsed = Date.now() - new Date(user.last_failed_login).getTime();
+          if (elapsed > lockDuration) {
+            await supabase
+              .from("users")
+              .update({ status: "active", login_attempts: 0, updated_at: new Date().toISOString() })
+              .eq("id", user.id);
+            user.status = "active";
+            user.login_attempts = 0;
+          } else {
+            throw new TRPCError({ code: "FORBIDDEN", message: "ACCOUNT_LOCKED" });
+          }
+        } else {
+          throw new TRPCError({ code: "FORBIDDEN", message: "ACCOUNT_LOCKED" });
+        }
       }
 
-      const valid = await bcrypt.compare(input.password, user.passwordHash);
+      const valid = await bcrypt.compare(input.password, user.password_hash);
       if (!valid) {
-        user.loginAttempts += 1;
-        user.lastFailedLogin = new Date().toISOString();
-
-        if (user.loginAttempts >= 10) {
-          user.status = "locked";
+        const newAttempts = (user.login_attempts || 0) + 1;
+        const updates: any = {
+          login_attempts: newAttempts,
+          last_failed_login: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        };
+        if (newAttempts >= 10) {
+          updates.status = "locked";
         }
-
+        await supabase.from("users").update(updates).eq("id", user.id);
         throw new TRPCError({ code: "UNAUTHORIZED", message: "INVALID_CREDENTIALS" });
       }
 
-      user.loginAttempts = 0;
-      user.lastFailedLogin = null;
-      user.lastLoginAt = new Date().toISOString();
-      user.updatedAt = new Date().toISOString();
+      const now = new Date().toISOString();
+      await supabase
+        .from("users")
+        .update({ login_attempts: 0, last_failed_login: null, last_login_at: now, updated_at: now })
+        .eq("id", user.id);
 
-      const token = generateToken(userId);
+      const token = generateToken(user.id);
       return { token, user: sanitizeUser(user) };
     }),
 
-  getProfile: protectedProcedure.query(({ ctx }) => {
-    const user = users.get(ctx.userId);
-    if (!user) {
+  getProfile: protectedProcedure.query(async ({ ctx }) => {
+    const { data: user, error } = await supabase
+      .from("users")
+      .select("*")
+      .eq("id", ctx.userId)
+      .single();
+
+    if (error || !user) {
       throw new TRPCError({ code: "NOT_FOUND", message: "USER_NOT_FOUND" });
     }
     return { user: sanitizeUser(user) };
@@ -212,33 +215,52 @@ export const authRouter = createTRPCRouter({
         buddyIds: z.array(z.string()).optional(),
       })
     )
-    .mutation(({ ctx, input }) => {
-      const user = users.get(ctx.userId);
-      if (!user) {
-        throw new TRPCError({ code: "NOT_FOUND", message: "USER_NOT_FOUND" });
-      }
+    .mutation(async ({ ctx, input }) => {
+      const updates: any = { updated_at: new Date().toISOString() };
 
       if (input.username !== undefined) {
         const newLower = input.username.toLowerCase().trim();
-        const currentLower = user.username.toLowerCase();
-        if (newLower !== currentLower) {
-          if (usernameIndex.has(newLower)) {
+
+        const { data: current } = await supabase
+          .from("users")
+          .select("username")
+          .eq("id", ctx.userId)
+          .single();
+
+        if (current && current.username.toLowerCase() !== newLower) {
+          const { data: existing } = await supabase
+            .from("users")
+            .select("id")
+            .eq("username_lower", newLower)
+            .neq("id", ctx.userId)
+            .maybeSingle();
+
+          if (existing) {
             throw new TRPCError({ code: "CONFLICT", message: "USERNAME_EXISTS" });
           }
-          usernameIndex.delete(currentLower);
-          usernameIndex.set(newLower, user.id);
-          user.username = input.username.trim();
+          updates.username = input.username.trim();
+          updates.username_lower = newLower;
         }
       }
 
-      if (input.profileImageName !== undefined) user.profileImageName = input.profileImageName;
-      if (input.customProfileImageURL !== undefined) user.customProfileImageURL = input.customProfileImageURL;
-      if (input.bio !== undefined) user.bio = input.bio;
-      if (input.topFiveFilms !== undefined) user.topFiveFilms = input.topFiveFilms;
-      if (input.goldenPopcornFilmId !== undefined) user.goldenPopcornFilmId = input.goldenPopcornFilmId;
-      if (input.watchlist !== undefined) user.watchlist = input.watchlist;
-      if (input.buddyIds !== undefined) user.buddyIds = input.buddyIds;
-      user.updatedAt = new Date().toISOString();
+      if (input.profileImageName !== undefined) updates.profile_image_name = input.profileImageName;
+      if (input.customProfileImageURL !== undefined) updates.custom_profile_image_url = input.customProfileImageURL;
+      if (input.bio !== undefined) updates.bio = input.bio;
+      if (input.topFiveFilms !== undefined) updates.top_five_films = input.topFiveFilms;
+      if (input.goldenPopcornFilmId !== undefined) updates.golden_popcorn_film_id = input.goldenPopcornFilmId;
+      if (input.watchlist !== undefined) updates.watchlist = input.watchlist;
+      if (input.buddyIds !== undefined) updates.buddy_ids = input.buddyIds;
+
+      const { data: user, error } = await supabase
+        .from("users")
+        .update(updates)
+        .eq("id", ctx.userId)
+        .select()
+        .single();
+
+      if (error || !user) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "USER_NOT_FOUND" });
+      }
 
       return { user: sanitizeUser(user) };
     }),
@@ -251,29 +273,39 @@ export const authRouter = createTRPCRouter({
         watchlist: z.array(z.any()).optional(),
       })
     )
-    .mutation(({ ctx, input }) => {
-      const user = users.get(ctx.userId);
-      if (!user) {
-        throw new TRPCError({ code: "NOT_FOUND", message: "USER_NOT_FOUND" });
-      }
+    .mutation(async ({ ctx, input }) => {
+      const updates: any = { updated_at: new Date().toISOString() };
 
-      if (input.diaryEntries !== undefined) user.diaryEntries = input.diaryEntries;
-      if (input.filmLists !== undefined) user.filmLists = input.filmLists;
-      if (input.watchlist !== undefined) user.watchlist = input.watchlist;
-      user.updatedAt = new Date().toISOString();
+      if (input.diaryEntries !== undefined) updates.diary_entries = input.diaryEntries;
+      if (input.filmLists !== undefined) updates.film_lists = input.filmLists;
+      if (input.watchlist !== undefined) updates.watchlist = input.watchlist;
+
+      const { error } = await supabase
+        .from("users")
+        .update(updates)
+        .eq("id", ctx.userId);
+
+      if (error) {
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to sync data" });
+      }
 
       return { success: true };
     }),
 
-  getData: protectedProcedure.query(({ ctx }) => {
-    const user = users.get(ctx.userId);
-    if (!user) {
+  getData: protectedProcedure.query(async ({ ctx }) => {
+    const { data: user, error } = await supabase
+      .from("users")
+      .select("diary_entries, film_lists, watchlist")
+      .eq("id", ctx.userId)
+      .single();
+
+    if (error || !user) {
       throw new TRPCError({ code: "NOT_FOUND", message: "USER_NOT_FOUND" });
     }
     return {
-      diaryEntries: user.diaryEntries,
-      filmLists: user.filmLists,
-      watchlist: user.watchlist,
+      diaryEntries: user.diary_entries || [],
+      filmLists: user.film_lists || [],
+      watchlist: user.watchlist || [],
     };
   }),
 
@@ -285,23 +317,26 @@ export const authRouter = createTRPCRouter({
       })
     )
     .mutation(async ({ ctx, input }) => {
-      const user = users.get(ctx.userId);
-      if (!user) {
+      const { data: user, error } = await supabase
+        .from("users")
+        .select("password_hash")
+        .eq("id", ctx.userId)
+        .single();
+
+      if (error || !user) {
         throw new TRPCError({ code: "NOT_FOUND", message: "USER_NOT_FOUND" });
       }
 
-      const valid = await bcrypt.compare(input.currentPassword, user.passwordHash);
+      const valid = await bcrypt.compare(input.currentPassword, user.password_hash);
       if (!valid) {
         throw new TRPCError({ code: "UNAUTHORIZED", message: "INVALID_CREDENTIALS" });
       }
 
-      const strengthError = validatePasswordStrength(input.newPassword);
-      if (strengthError) {
-        throw new TRPCError({ code: "BAD_REQUEST", message: strengthError });
-      }
-
-      user.passwordHash = await bcrypt.hash(input.newPassword, BCRYPT_ROUNDS);
-      user.updatedAt = new Date().toISOString();
+      const newHash = await bcrypt.hash(input.newPassword, BCRYPT_ROUNDS);
+      await supabase
+        .from("users")
+        .update({ password_hash: newHash, updated_at: new Date().toISOString() })
+        .eq("id", ctx.userId);
 
       return { success: true };
     }),
@@ -315,13 +350,8 @@ export const authRouter = createTRPCRouter({
       };
     }),
 
-  deleteAccount: protectedProcedure.mutation(({ ctx }) => {
-    const user = users.get(ctx.userId);
-    if (user) {
-      emailIndex.delete(user.email);
-      usernameIndex.delete(user.username.toLowerCase());
-      users.delete(ctx.userId);
-    }
+  deleteAccount: protectedProcedure.mutation(async ({ ctx }) => {
+    await supabase.from("users").delete().eq("id", ctx.userId);
     return { success: true };
   }),
 });
