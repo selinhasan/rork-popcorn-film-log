@@ -3,7 +3,8 @@ import app from "../hono";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const host = req.headers.host || "localhost";
-  const url = `https://${host}${req.url}`;
+  const strippedPath = (req.url || "/").replace(/^\/api/, "") || "/";
+  const url = `https://${host}${strippedPath}`;
 
   const headers = new Headers();
   for (const [key, value] of Object.entries(req.headers)) {
