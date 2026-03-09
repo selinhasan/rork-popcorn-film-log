@@ -6,7 +6,7 @@ import { TRPCError } from "@trpc/server";
 import { createTRPCRouter, publicProcedure, protectedProcedure } from "../create-context";
 import { supabase } from "../../lib/supabase";
 
-const JWT_SECRET = process.env.JWT_SECRET || "popcorn-film-log-jwt-secret-2026";
+
 const ACCESS_TOKEN_EXPIRY = "7d";
 const BCRYPT_ROUNDS = 12;
 const JWT_SECRET = new TextEncoder().encode(
