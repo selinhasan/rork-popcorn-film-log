@@ -8,14 +8,12 @@
     "@hono/trpc-server": "^0.3.4",
     "@supabase/supabase-js": "^2.49.1",
     "@trpc/server": "^11.0.0",
-    "bcryptjs": "^2.4.3",
     "hono": "^4.7.4",
     "jose": "^5.9.6",
     "uuid": "^11.1.0",
     "zod": "^3.24.2"
   },
   "devDependencies": {
-    "@types/bcryptjs": "^2.4.6",
     "@types/uuid": "^10.0.0",
     "@types/node": "^20.0.0",
     "typescript": "^5.0.0"
