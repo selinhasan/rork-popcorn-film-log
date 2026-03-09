@@ -1,22 +1,40 @@
 import { z } from "zod";
-import bcrypt from "bcryptjs";
 import { SignJWT } from "jose";
 import { v4 as uuidv4 } from "uuid";
 import { TRPCError } from "@trpc/server";
 import { createTRPCRouter, publicProcedure, protectedProcedure } from "../create-context";
 import { supabase } from "../../lib/supabase";
 
-
-const ACCESS_TOKEN_EXPIRY = "7d";
-const BCRYPT_ROUNDS = 12;
 const JWT_SECRET = new TextEncoder().encode(
   process.env.JWT_SECRET || "popcorn-film-log-jwt-secret-2026"
 );
+const ACCESS_TOKEN_EXPIRY = "7d";
+
+async function hashPassword(password: string): Promise<string> {
+  const encoder = new TextEncoder();
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  const keyMaterial = await crypto.subtle.importKey("raw", encoder.encode(password), "PBKDF2", false, ["deriveBits"]);
+  const bits = await crypto.subtle.deriveBits({ name: "PBKDF2", salt, iterations: 100000, hash: "SHA-256" }, keyMaterial, 256);
+  const hashArray = Array.from(new Uint8Array(bits));
+  const saltArray = Array.from(salt);
+  return btoa(JSON.stringify({ salt: saltArray, hash: hashArray }));
+}
+
+async function verifyPassword(password: string, stored: string): Promise<boolean> {
+  try {
+    const { salt, hash } = JSON.parse(atob(stored));
+    const encoder = new TextEncoder();
+    const keyMaterial = await crypto.subtle.importKey("raw", encoder.encode(password), "PBKDF2", false, ["deriveBits"]);
+    const bits = await crypto.subtle.deriveBits({ name: "PBKDF2", salt: new Uint8Array(salt), iterations: 100000, hash: "SHA-256" }, keyMaterial, 256);
+    const newHash = Array.from(new Uint8Array(bits));
+    return JSON.stringify(newHash) === JSON.stringify(hash);
+  } catch { return false; }
+}
 
 async function generateToken(userId: string): Promise<string> {
   return new SignJWT({ userId })
     .setProtectedHeader({ alg: "HS256" })
-    .setExpirationTime("7d")
+    .setExpirationTime(ACCESS_TOKEN_EXPIRY)
     .sign(JWT_SECRET);
 }
 
@@ -83,7 +101,7 @@ export const authRouter = createTRPCRouter({
         throw new TRPCError({ code: "CONFLICT", message: "USERNAME_EXISTS" });
       }
 
-      const passwordHash = await bcrypt.hash(input.password, BCRYPT_ROUNDS);
+      const passwordHash = await hashPassword(input.password);
       const userId = uuidv4();
       const now = new Date().toISOString();
 
@@ -170,7 +188,7 @@ export const authRouter = createTRPCRouter({
         }
       }
 
-      const valid = await bcrypt.compare(input.password, user.password_hash);
+      const valid = await verifyPassword(input.password, user.password_hash);
       if (!valid) {
         const newAttempts = (user.login_attempts || 0) + 1;
         const updates: any = {
@@ -333,12 +351,12 @@ export const authRouter = createTRPCRouter({
         throw new TRPCError({ code: "NOT_FOUND", message: "USER_NOT_FOUND" });
       }
 
-      const valid = await bcrypt.compare(input.currentPassword, user.password_hash);
+      const valid = await verifyPassword(input.currentPassword, user.password_hash);
       if (!valid) {
         throw new TRPCError({ code: "UNAUTHORIZED", message: "INVALID_CREDENTIALS" });
       }
 
-      const newHash = await bcrypt.hash(input.newPassword, BCRYPT_ROUNDS);
+      const newHash = await hashPassword(input.newPassword);
       await supabase
         .from("users")
         .update({ password_hash: newHash, updated_at: new Date().toISOString() })
