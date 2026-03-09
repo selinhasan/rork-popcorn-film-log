@@ -1,6 +1,6 @@
 import { z } from "zod";
 import bcrypt from "bcryptjs";
-import jwt from "jsonwebtoken";
+import { SignJWT } from "jose";
 import { v4 as uuidv4 } from "uuid";
 import { TRPCError } from "@trpc/server";
 import { createTRPCRouter, publicProcedure, protectedProcedure } from "../create-context";
@@ -9,9 +9,15 @@ import { supabase } from "../../lib/supabase";
 const JWT_SECRET = process.env.JWT_SECRET || "popcorn-film-log-jwt-secret-2026";
 const ACCESS_TOKEN_EXPIRY = "7d";
 const BCRYPT_ROUNDS = 12;
+const JWT_SECRET = new TextEncoder().encode(
+  process.env.JWT_SECRET || "popcorn-film-log-jwt-secret-2026"
+);
 
-function generateToken(userId: string): string {
-  return jwt.sign({ userId }, JWT_SECRET, { expiresIn: ACCESS_TOKEN_EXPIRY });
+async function generateToken(userId: string): Promise<string> {
+  return new SignJWT({ userId })
+    .setProtectedHeader({ alg: "HS256" })
+    .setExpirationTime("7d")
+    .sign(JWT_SECRET);
 }
 
 function sanitizeUser(user: any) {
@@ -112,7 +118,7 @@ export const authRouter = createTRPCRouter({
         throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to create account" });
       }
 
-      const token = generateToken(userId);
+      const token = await generateToken(userId);
       return { token, user: sanitizeUser(newUser) };
     }),
 
@@ -185,7 +191,7 @@ export const authRouter = createTRPCRouter({
         .update({ login_attempts: 0, last_failed_login: null, last_login_at: now, updated_at: now })
         .eq("id", user.id);
 
-      const token = generateToken(user.id);
+      const token = await generateToken(user.id);
       return { token, user: sanitizeUser(user) };
     }),
 
