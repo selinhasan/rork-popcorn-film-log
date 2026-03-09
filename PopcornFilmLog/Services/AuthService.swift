@@ -69,11 +69,7 @@ private nonisolated struct TRPCWrapper<T: Codable & Sendable>: Codable, Sendable
 }
 
 private nonisolated struct TRPCResultData<T: Codable & Sendable>: Codable, Sendable {
-    let data: TRPCJson<T>
-}
-
-private nonisolated struct TRPCJson<T: Codable & Sendable>: Codable, Sendable {
-    let json: T
+    let data: T
 }
 
 nonisolated final class AuthClient: Sendable {
@@ -145,13 +141,13 @@ nonisolated final class AuthClient: Sendable {
     private func query<T: Codable & Sendable>(_ endpoint: String, body: [String: Any]? = nil, token: String? = nil) async throws -> T {
         let data = try await request(endpoint: endpoint, method: "GET", body: body, token: token)
         let wrapper = try decoder.decode(TRPCWrapper<T>.self, from: data)
-        return wrapper.result.data.json
+        return wrapper.result.data
     }
 
     private func mutation<T: Codable & Sendable>(_ endpoint: String, body: [String: Any]? = nil, token: String? = nil) async throws -> T {
         let data = try await request(endpoint: endpoint, method: "POST", body: body, token: token)
         let wrapper = try decoder.decode(TRPCWrapper<T>.self, from: data)
-        return wrapper.result.data.json
+        return wrapper.result.data
     }
 
     private func request(endpoint: String, method: String, body: [String: Any]?, token: String?) async throws -> Data {
@@ -162,8 +158,7 @@ nonisolated final class AuthClient: Sendable {
         var urlString = "\(baseURL)/\(endpoint)"
 
         if method == "GET", let body, !body.isEmpty {
-            let wrapped: [String: Any] = ["json": body]
-            let jsonData = try JSONSerialization.data(withJSONObject: wrapped)
+            let jsonData = try JSONSerialization.data(withJSONObject: body)
             if let jsonString = String(data: jsonData, encoding: .utf8),
                let encoded = jsonString.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) {
                 urlString += "?input=\(encoded)"
@@ -183,8 +178,7 @@ nonisolated final class AuthClient: Sendable {
         }
 
         if method == "POST", let body {
-            let wrapped: [String: Any] = ["json": body]
-            req.httpBody = try JSONSerialization.data(withJSONObject: wrapped)
+            req.httpBody = try JSONSerialization.data(withJSONObject: body)
         }
 
         let (data, response) = try await session.data(for: req)
