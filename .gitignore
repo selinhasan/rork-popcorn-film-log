@@ -1,15 +1,9 @@
-# React Native / Expo artifacts (should not exist in Swift projects)
+# JavaScript / Bun / Expo
 node_modules/
 .expo/
 .bundle/
-android/
-ios/
-babel.config.js
-metro.config.js
-package.json
-package-lock.json
-tsconfig.json
-app.json
+
+# Keep package.json, package-lock.json, tsconfig.json and app.json committed
 
 # Xcode
 build/
@@ -23,7 +17,7 @@ xcuserdata/
 .swiftpm/
 Package.resolved
 
-# macOS
+# macOS / editor junk
 .DS_Store
 *.swp
 *~
@@ -31,9 +25,5 @@ Package.resolved
 # Rork
 .rork/
 rork-eslint.config.js
-
-.rork
 .env
 core
-node_modules
-.expo
