@@ -3,8 +3,7 @@ import app from "../hono";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const host = req.headers.host || "localhost";
-  const strippedPath = (req.url || "/").replace(/^\/api/, "") || "/";
-  const url = `https://${host}${strippedPath}`;
+  const url = `https://${host}${req.url}`;
 
   const headers = new Headers();
   for (const [key, value] of Object.entries(req.headers)) {
@@ -13,9 +12,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   let body: string | undefined;
   if (req.method !== "GET" && req.method !== "HEAD") {
-    // req.body is already parsed by Vercel — re-stringify it
     body = req.body ? JSON.stringify(req.body) : undefined;
-    // Ensure content-type is set correctly
     headers.set("content-type", "application/json");
   }
 
