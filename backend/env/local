@@ -1,9 +1,9 @@
 # Do not commit real secrets to git.
 # Use this file only for local development values.
 
-SUPABASE_URL=https://YOUR_PROJECT_ID.supabase.co
-SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
-JWT_SECRET=replace_with_a_long_random_secret
+SUPABASE_URL=https://nmcgyfaixyxmkpmhuzlf.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5tY2d5ZmFpeHl4bWtwbWh1emxmIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3MjkxNjg2NSwiZXhwIjoyMDg4NDkyODY1fQ.RjhwxDPbgCbHYxNcg-UO0aANKpgKfh5g5H3e2oS41Ag
+JWT_SECRET=457E9089-E02E-4B9E-9CA2-30B365FC5673
 
-NEXT_PUBLIC_SUPABASE_URL=https://YOUR_PROJECT_ID.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=your_publishable_or_anon_key
+NEXT_PUBLIC_SUPABASE_URL=https://nmcgyfaixyxmkpmhuzlf.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=sb_publishable_djMoK2JmZB3tT7J6lXisnA_L6cLmoFx
