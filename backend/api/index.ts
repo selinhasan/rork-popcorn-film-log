@@ -46,7 +46,12 @@ export default async function handler(
   const url = `${protocol}://${host}${req.url}`;
   const headers = new Headers();
 
-  for (const [key, rawValue] of Object.entries(req.headers)) {
+  const typedHeaders = req.headers as Record<
+    string,
+    string | string[] | undefined
+  >;
+
+  for (const [key, rawValue] of Object.entries(typedHeaders)) {
     const value = getHeaderValue(rawValue);
 
     if (!value) {
