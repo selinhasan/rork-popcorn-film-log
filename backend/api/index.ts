@@ -30,8 +30,12 @@ function getBody(req: VercelRequest): BodyInit | undefined {
     return undefined;
   }
 
-  if (typeof req.body === "string" || Buffer.isBuffer(req.body)) {
+  if (typeof req.body === "string") {
     return req.body;
+  }
+
+  if (Buffer.isBuffer(req.body)) {
+    return new Uint8Array(req.body);
   }
 
   return JSON.stringify(req.body);
