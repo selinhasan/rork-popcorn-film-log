@@ -12,3 +12,4 @@ if (!supabaseServiceRoleKey) {
 }
 
 export const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
+
