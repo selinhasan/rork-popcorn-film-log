@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { jwtVerify, SignJWT } from "jose";
-import { supabase } from "./supabase";
+import { supabase } from "./supabase.js";
 
 const ACCESS_TOKEN_EXPIRY = "7d";
 const LOCK_DURATION_MS = 15 * 60 * 1000;

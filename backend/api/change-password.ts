@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { supabase } from "../lib/supabase";
-import { handleCors, requireAuth, verifyPassword, hashPassword } from "../lib/auth";
+import { supabase } from "../lib/supabase.js";
+import { handleCors, requireAuth, verifyPassword, hashPassword } from "../lib/auth.js";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (handleCors(req, res)) return;
