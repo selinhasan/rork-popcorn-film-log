@@ -567,3 +567,39 @@ class AppViewModel {
         posts = MockDataService.samplePosts
     }
 }
+
+
+
+// for testing
+func debugLoginPOST(email: String, password: String) async {
+    guard let url = URL(string: "https://YOUR-VERCEL-URL/api/login") else {
+        print("Invalid URL")
+        return
+    }
+
+    var request = URLRequest(url: url)
+    request.httpMethod = "POST"
+    request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+
+    let body: [String: Any] = [
+        "email": email,
+        "password": password
+    ]
+
+    request.httpBody = try? JSONSerialization.data(withJSONObject: body)
+
+    do {
+        let (data, response) = try await URLSession.shared.data(for: request)
+        if let httpResponse = response as? HTTPURLResponse {
+            print("Status code: \(httpResponse.statusCode)")
+        }
+
+        if let json = try? JSONSerialization.jsonObject(with: data) {
+            print("Response JSON: \(json)")
+        } else if let string = String(data: data, encoding: .utf8) {
+            print("Response String: \(string)")
+        }
+    } catch {
+        print("Login POST failed:", error)
+    }
+}
