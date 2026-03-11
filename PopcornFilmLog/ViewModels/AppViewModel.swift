@@ -23,11 +23,11 @@ class AppViewModel {
     var isSyncing = false
 
     private let tmdb = TMDbService.shared
-    private let auth = AuthClient.shared
-    private let tokenKey = "auth_token"
+    private let localAuth = LocalAuthService.shared
+    private let accountIdKey = "auth_account_id"
 
     init() {
-        if let token = KeychainService.load(key: tokenKey),
+        if let _ = KeychainService.load(key: accountIdKey),
            let data = UserDefaults.standard.data(forKey: "currentUser"),
            let user = try? JSONDecoder().decode(UserProfile.self, from: data) {
             currentUser = user
@@ -36,7 +36,6 @@ class AppViewModel {
             loadLocalDiary()
             loadLocalLists()
             loadBuddies()
-            Task { await refreshProfile(token: token) }
         }
         Task { await loadTMDbData() }
     }
@@ -101,9 +100,14 @@ class AppViewModel {
 
     func signUp(username: String, email: String, password: String) async throws {
         authError = nil
-        let response = try await auth.register(username: username, email: email, password: password)
-        KeychainService.save(key: tokenKey, value: response.token)
-        let user = mapServerUser(response.user)
+        let account = try localAuth.register(username: username, email: email, password: password)
+        KeychainService.save(key: accountIdKey, value: account.id)
+        let user = UserProfile(
+            id: account.id,
+            username: account.username,
+            email: account.email,
+            joinDate: account.joinDate
+        )
         currentUser = user
         isLoggedIn = true
         saveUserLocally()
@@ -112,25 +116,27 @@ class AppViewModel {
 
     func logIn(email: String, password: String) async throws {
         authError = nil
-        let response = try await auth.login(email: email, password: password)
-        KeychainService.save(key: tokenKey, value: response.token)
-        let user = mapServerUser(response.user)
+        let account = try localAuth.login(identifier: email, password: password)
+        KeychainService.save(key: accountIdKey, value: account.id)
+        let user = UserProfile(
+            id: account.id,
+            username: account.username,
+            email: account.email,
+            joinDate: account.joinDate
+        )
         currentUser = user
         isLoggedIn = true
         hasCompletedOnboarding = true
         UserDefaults.standard.set(true, forKey: "hasCompletedOnboarding")
 
-        diaryEntries = response.user.diaryEntries
-        filmLists = response.user.filmLists
-
+        loadLocalDiary()
+        loadLocalLists()
         saveUserLocally()
-        saveLocalDiary()
-        saveLocalLists()
         loadBuddies()
     }
 
     func logOut() {
-        KeychainService.delete(key: tokenKey)
+        KeychainService.delete(key: accountIdKey)
         currentUser = nil
         isLoggedIn = false
         hasCompletedOnboarding = false
@@ -146,14 +152,10 @@ class AppViewModel {
     }
 
     func deleteAccount() {
-        guard let token = KeychainService.load(key: tokenKey) else {
-            logOut()
-            return
+        if let accountId = KeychainService.load(key: accountIdKey) {
+            localAuth.deleteAccount(accountId: accountId)
         }
-        Task {
-            try? await auth.deleteAccount(token: token)
-            logOut()
-        }
+        logOut()
     }
 
     func completeOnboarding() {
@@ -162,19 +164,14 @@ class AppViewModel {
     }
 
     func requestPasswordReset(email: String) async -> Bool {
-        do {
-            let _ = try await auth.requestPasswordReset(email: email)
-            return true
-        } catch {
-            return false
-        }
+        return true
     }
 
     func changePassword(current: String, new: String) async throws {
-        guard let token = KeychainService.load(key: tokenKey) else {
+        guard let accountId = KeychainService.load(key: accountIdKey) else {
             throw AuthError.unauthorized
         }
-        try await auth.changePassword(token: token, currentPassword: current, newPassword: new)
+        try localAuth.changePassword(accountId: accountId, currentPassword: current, newPassword: new)
     }
 
     // MARK: - Profile
@@ -435,103 +432,16 @@ class AppViewModel {
         return minutes
     }
 
-    private func mapServerUser(_ serverUser: ServerUser) -> UserProfile {
-        let dateFormatter = ISO8601DateFormatter()
-        let joinDate = dateFormatter.date(from: serverUser.joinDate) ?? Date()
 
-        return UserProfile(
-            id: serverUser.id,
-            username: serverUser.username,
-            email: serverUser.email,
-            profileImageName: serverUser.profileImageName,
-            customProfileImageURL: serverUser.customProfileImageURL,
-            bio: serverUser.bio,
-            topFiveFilms: serverUser.topFiveFilms,
-            goldenPopcornFilmId: serverUser.goldenPopcornFilmId,
-            buddyIds: serverUser.buddyIds,
-            watchlist: serverUser.watchlist,
-            joinDate: joinDate
-        )
-    }
-
-    private func refreshProfile(token: String) async {
-        do {
-            let response = try await auth.getProfile(token: token)
-            let user = mapServerUser(response.user)
-            currentUser = user
-            saveUserLocally()
-
-            let dataResponse = try await auth.getData(token: token)
-            if !dataResponse.diaryEntries.isEmpty {
-                diaryEntries = dataResponse.diaryEntries
-                saveLocalDiary()
-            }
-            if !dataResponse.filmLists.isEmpty {
-                filmLists = dataResponse.filmLists
-                saveLocalLists()
-            }
-        } catch {
-            // Keep using local data if server is unreachable
-        }
-    }
 
     private func syncProfileToServer() {
-        guard let token = KeychainService.load(key: tokenKey), let user = currentUser else { return }
-        Task {
-            var updates: [String: Any] = [:]
-            updates["username"] = user.username
-            updates["profileImageName"] = user.profileImageName
-            updates["bio"] = user.bio
-
-            if let customURL = user.customProfileImageURL {
-                updates["customProfileImageURL"] = customURL
-            }
-            if let goldenId = user.goldenPopcornFilmId {
-                updates["goldenPopcornFilmId"] = goldenId
-            }
-
-            if !user.topFiveFilms.isEmpty {
-                updates["topFiveFilms"] = user.topFiveFilms.map { filmToDict($0) }
-            }
-
-            if !user.watchlist.isEmpty {
-                updates["watchlist"] = user.watchlist.map { filmToDict($0) }
-            }
-
-            updates["buddyIds"] = user.buddyIds
-
-            let _ = try? await auth.updateProfile(token: token, updates: updates)
-        }
+        saveUserLocally()
     }
 
     private func syncDataToServer() {
-        guard let token = KeychainService.load(key: tokenKey) else { return }
-        Task {
-            isSyncing = true
-            let diaryData = diaryEntries.compactMap { entry -> [String: Any]? in
-                guard let data = try? JSONEncoder().encode(entry),
-                      let dict = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return nil }
-                return dict
-            }
-            let listsData = filmLists.compactMap { list -> [String: Any]? in
-                guard let data = try? JSONEncoder().encode(list),
-                      let dict = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return nil }
-                return dict
-            }
-            let watchlistData = (currentUser?.watchlist ?? []).compactMap { film -> [String: Any]? in
-                guard let data = try? JSONEncoder().encode(film),
-                      let dict = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return nil }
-                return dict
-            }
-            try? await auth.syncData(token: token, diaryEntries: diaryData, filmLists: listsData, watchlist: watchlistData)
-            isSyncing = false
-        }
-    }
-
-    private func filmToDict(_ film: Film) -> [String: Any] {
-        guard let data = try? JSONEncoder().encode(film),
-              let dict = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return [:] }
-        return dict
+        saveLocalDiary()
+        saveLocalLists()
+        saveUserLocally()
     }
 
     private func saveUserLocally() {

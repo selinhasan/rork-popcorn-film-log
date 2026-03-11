@@ -1,4 +1,5 @@
 import Foundation
+import CryptoKit
 
 nonisolated enum AuthError: Error, Sendable, LocalizedError {
     case emailExists
@@ -17,179 +18,122 @@ nonisolated enum AuthError: Error, Sendable, LocalizedError {
         case .invalidCredentials: return "Incorrect email or password."
         case .unauthorized: return "Session expired. Please log in again."
         case .userNotFound: return "Account not found."
-        case .accountLocked: return "Account temporarily locked due to too many failed attempts. Try again in 15 minutes."
+        case .accountLocked: return "Account temporarily locked. Try again later."
         case .networkError(let msg): return msg
         case .serverError(let msg): return msg
         }
     }
 }
 
-nonisolated struct AuthResponse: Codable, Sendable {
-    let token: String
-    let user: ServerUser
-}
-
-nonisolated struct ServerUser: Codable, Sendable {
+nonisolated struct StoredAccount: Codable, Sendable {
     let id: String
     let username: String
     let email: String
-    let profileImageName: String
-    let customProfileImageURL: String?
-    let bio: String
-    let topFiveFilms: [Film]
-    let goldenPopcornFilmId: String?
-    let buddyIds: [String]
-    let watchlist: [Film]
-    let diaryEntries: [LogEntry]
-    let filmLists: [FilmList]
-    let joinDate: String
+    let passwordHash: String
+    let salt: String
+    let joinDate: Date
 }
 
-nonisolated struct ProfileResponse: Codable, Sendable {
-    let user: ServerUser
-}
+final class LocalAuthService {
+    static let shared = LocalAuthService()
+    private let accountsKey = "stored_accounts"
 
-nonisolated struct SuccessResponse: Codable, Sendable {
-    let success: Bool
-}
+    private init() {}
 
-nonisolated struct ResetResponse: Codable, Sendable {
-    let success: Bool
-    let message: String
-}
+    func register(username: String, email: String, password: String) throws -> StoredAccount {
+        var accounts = loadAccounts()
 
-nonisolated struct DataResponse: Codable, Sendable {
-    let diaryEntries: [LogEntry]
-    let filmLists: [FilmList]
-    let watchlist: [Film]
-}
-
-nonisolated final class AuthClient: Sendable {
-    static let shared = AuthClient()
-
-    private let session: URLSession
-    private let decoder: JSONDecoder
-    private let encoder: JSONEncoder
-
-    private init() {
-        let config = URLSessionConfiguration.default
-        config.timeoutIntervalForRequest = 30
-        config.timeoutIntervalForResource = 60
-        session = URLSession(configuration: config)
-        decoder = JSONDecoder()
-        encoder = JSONEncoder()
-    }
-
-    private var baseURL: String {
-        let url = Config.EXPO_PUBLIC_RORK_API_BASE_URL
-        guard !url.isEmpty else { return "" }
-        return url
-    }
-
-    func register(username: String, email: String, password: String) async throws -> AuthResponse {
-        let body: [String: Any] = ["username": username, "email": email, "password": password]
-        return try await post("register", body: body)
-    }
-
-    func login(email: String, password: String) async throws -> AuthResponse {
-        let body: [String: Any] = ["email": email, "password": password]
-        return try await post("login", body: body)
-    }
-
-    func getProfile(token: String) async throws -> ProfileResponse {
-        return try await get("get-profile", token: token)
-    }
-
-    func updateProfile(token: String, updates: [String: Any]) async throws -> ProfileResponse {
-        return try await post("update-profile", body: updates, token: token)
-    }
-
-    func syncData(token: String, diaryEntries: [[String: Any]]?, filmLists: [[String: Any]]?, watchlist: [[String: Any]]?) async throws {
-        var body: [String: Any] = [:]
-        if let diaryEntries { body["diaryEntries"] = diaryEntries }
-        if let filmLists { body["filmLists"] = filmLists }
-        if let watchlist { body["watchlist"] = watchlist }
-        let _: SuccessResponse = try await post("sync-data", body: body, token: token)
-    }
-
-    func getData(token: String) async throws -> DataResponse {
-        return try await get("get-data", token: token)
-    }
-
-    func changePassword(token: String, currentPassword: String, newPassword: String) async throws {
-        let body: [String: Any] = ["currentPassword": currentPassword, "newPassword": newPassword]
-        let _: SuccessResponse = try await post("change-password", body: body, token: token)
-    }
-
-    func requestPasswordReset(email: String) async throws -> ResetResponse {
-        let body: [String: Any] = ["email": email]
-        return try await post("request-password-reset", body: body)
-    }
-
-    func deleteAccount(token: String) async throws {
-        let _: SuccessResponse = try await post("delete-account", body: [:], token: token)
-    }
-
-    private func get<T: Codable & Sendable>(_ endpoint: String, token: String? = nil) async throws -> T {
-        let data = try await request(endpoint: endpoint, method: "GET", body: nil, token: token)
-        return try decoder.decode(T.self, from: data)
-    }
-
-    private func post<T: Codable & Sendable>(_ endpoint: String, body: [String: Any]? = nil, token: String? = nil) async throws -> T {
-        let data = try await request(endpoint: endpoint, method: "POST", body: body, token: token)
-        return try decoder.decode(T.self, from: data)
-    }
-
-    private func request(endpoint: String, method: String, body: [String: Any]?, token: String?) async throws -> Data {
-        guard !baseURL.isEmpty else {
-            throw AuthError.networkError("Server URL not configured")
+        if accounts.contains(where: { $0.email.lowercased() == email.lowercased() }) {
+            throw AuthError.emailExists
+        }
+        if accounts.contains(where: { $0.username.lowercased() == username.lowercased() }) {
+            throw AuthError.usernameExists
         }
 
-        let urlString = "\(baseURL)/api/\(endpoint)"
+        let salt = UUID().uuidString
+        let hash = hashPassword(password, salt: salt)
 
-        guard let url = URL(string: urlString) else {
-            throw AuthError.networkError("Invalid URL")
-        }
+        let account = StoredAccount(
+            id: UUID().uuidString,
+            username: username,
+            email: email.lowercased(),
+            passwordHash: hash,
+            salt: salt,
+            joinDate: Date()
+        )
 
-        var req = URLRequest(url: url)
-        req.httpMethod = method
-        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-
-        if let token {
-            req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        }
-
-        if method == "POST", let body {
-            req.httpBody = try JSONSerialization.data(withJSONObject: body)
-        }
-
-        let (data, response) = try await session.data(for: req)
-
-        guard let httpResponse = response as? HTTPURLResponse else {
-            throw AuthError.networkError("Invalid response from server")
-        }
-
-        if httpResponse.statusCode >= 400 {
-            throw parseError(from: data, statusCode: httpResponse.statusCode)
-        }
-
-        return data
+        accounts.append(account)
+        saveAccounts(accounts)
+        return account
     }
 
-    private func parseError(from data: Data, statusCode: Int) -> AuthError {
-        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-            return .serverError("Server error (\(statusCode))")
+    func login(identifier: String, password: String) throws -> StoredAccount {
+        let accounts = loadAccounts()
+        let lowered = identifier.lowercased()
+
+        guard let account = accounts.first(where: {
+            $0.email.lowercased() == lowered || $0.username.lowercased() == lowered
+        }) else {
+            throw AuthError.invalidCredentials
         }
 
-        let message = json["error"] as? String ?? json["message"] as? String ?? ""
+        let hash = hashPassword(password, salt: account.salt)
+        guard hash == account.passwordHash else {
+            throw AuthError.invalidCredentials
+        }
 
-        if message.contains("EMAIL_EXISTS") { return .emailExists }
-        if message.contains("USERNAME_EXISTS") { return .usernameExists }
-        if message.contains("INVALID_CREDENTIALS") { return .invalidCredentials }
-        if message.contains("UNAUTHORIZED") { return .unauthorized }
-        if message.contains("USER_NOT_FOUND") { return .userNotFound }
-        if message.contains("ACCOUNT_LOCKED") { return .accountLocked }
+        return account
+    }
 
-        return .serverError("Server error (\(statusCode))")
+    func changePassword(accountId: String, currentPassword: String, newPassword: String) throws {
+        var accounts = loadAccounts()
+
+        guard let index = accounts.firstIndex(where: { $0.id == accountId }) else {
+            throw AuthError.userNotFound
+        }
+
+        let account = accounts[index]
+        let currentHash = hashPassword(currentPassword, salt: account.salt)
+        guard currentHash == account.passwordHash else {
+            throw AuthError.invalidCredentials
+        }
+
+        let newSalt = UUID().uuidString
+        let newHash = hashPassword(newPassword, salt: newSalt)
+
+        accounts[index] = StoredAccount(
+            id: account.id,
+            username: account.username,
+            email: account.email,
+            passwordHash: newHash,
+            salt: newSalt,
+            joinDate: account.joinDate
+        )
+        saveAccounts(accounts)
+    }
+
+    func deleteAccount(accountId: String) {
+        var accounts = loadAccounts()
+        accounts.removeAll { $0.id == accountId }
+        saveAccounts(accounts)
+    }
+
+    private func hashPassword(_ password: String, salt: String) -> String {
+        let input = Data((password + salt).utf8)
+        let hashed = SHA256.hash(data: input)
+        return hashed.compactMap { String(format: "%02x", $0) }.joined()
+    }
+
+    private func loadAccounts() -> [StoredAccount] {
+        guard let data = UserDefaults.standard.data(forKey: accountsKey),
+              let accounts = try? JSONDecoder().decode([StoredAccount].self, from: data) else {
+            return []
+        }
+        return accounts
+    }
+
+    private func saveAccounts(_ accounts: [StoredAccount]) {
+        guard let data = try? JSONEncoder().encode(accounts) else { return }
+        UserDefaults.standard.set(data, forKey: accountsKey)
     }
 }
