@@ -3,8 +3,8 @@ console.log("SUPABASE_SERVICE_ROLE_KEY:", process.env.SUPABASE_SERVICE_ROLE_KEY)
 //testing end
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { v4 as uuidv4 } from "uuid";
-import { supabase } from "../lib/supabase";
-import { handleCors, hashPassword, generateToken, sanitizeUser, type UserRow } from "../lib/auth";
+import { supabase } from "../lib/supabase.ts";
+import { handleCors, hashPassword, generateToken, sanitizeUser, type UserRow } from "../lib/auth.ts";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (handleCors(req, res)) return;
