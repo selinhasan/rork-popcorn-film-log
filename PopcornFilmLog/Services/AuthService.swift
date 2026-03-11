@@ -91,7 +91,7 @@ nonisolated final class AuthClient: Sendable {
     private var baseURL: String {
         let url = Config.EXPO_PUBLIC_RORK_API_BASE_URL
         guard !url.isEmpty else { return "" }
-        return url + "/api/trpc"
+        return url + "/trpc"
     }
 
     func register(username: String, email: String, password: String) async throws -> AuthResponse {
