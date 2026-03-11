@@ -1,4 +1,5 @@
 import SwiftUI
+import CryptoKit
 
 @Observable
 @MainActor
@@ -103,8 +104,6 @@ class AppViewModel {
 
     // MARK: - Auth
 
-    import CryptoKit
-
 func signUp(username: String, email: String, password: String) async throws {
     authError = nil
     
@@ -168,46 +167,58 @@ func signUp(username: String, email: String, password: String) async throws {
     loadBuddies()
 }
 
-    func logIn(email: String, password: String) async throws {
-        authError = nil
-        let response = try await remoteAuth.login(identifier: email, password: password)
-        KeychainService.save(key: tokenKey, value: response.token)
-
-        let user = UserProfile(
-            id: response.user.id,
-            username: response.user.username,
-            email: response.user.email,
-            profileImageName: response.user.profileImageName ?? "avatar_1",
-            customProfileImageURL: response.user.customProfileImageURL,
-            bio: response.user.bio ?? "",
-            topFiveFilms: response.user.topFiveFilms ?? [],
-            goldenPopcornFilmId: response.user.goldenPopcornFilmId,
-            buddyIds: response.user.buddyIds ?? [],
-            watchlist: response.user.watchlist ?? [],
-            joinDate: ISO8601DateFormatter().date(from: response.user.joinDate ?? "") ?? Date()
-        )
-        currentUser = user
-        isLoggedIn = true
-        hasCompletedOnboarding = true
-        UserDefaults.standard.set(true, forKey: "hasCompletedOnboarding")
-
-        if let entries = response.user.diaryEntries, !entries.isEmpty {
-            diaryEntries = entries
-            saveLocalDiary()
-        } else {
-            loadLocalDiary()
-        }
-
-        if let lists = response.user.filmLists, !lists.isEmpty {
-            filmLists = lists
-            saveLocalLists()
-        } else {
-            loadLocalLists()
-        }
-
-        saveUserLocally()
-        loadBuddies()
+func logIn(email: String, password: String) async throws {
+    authError = nil
+    
+    // 1️⃣ Hash the password
+    let passwordHash = SHA256.hash(data: Data(password.utf8))
+        .compactMap { String(format: "%02x", $0) }
+        .joined()
+    
+    // 2️⃣ Supabase REST URL with filter for email and password_hash
+    // URL encodes filter query
+    let filter = "email=eq.\(email)&password_hash=eq.\(passwordHash)"
+    guard let encodedFilter = filter.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) else {
+        throw NSError(domain: "LoginError", code: 1, userInfo: [NSLocalizedDescriptionKey: "Invalid filter"])
     }
+    
+    let url = URL(string: "https://<YOUR_SUPABASE_PROJECT_REF>.supabase.co/rest/v1/users?\(encodedFilter)")!
+    
+    var request = URLRequest(url: url)
+    request.httpMethod = "GET"
+    request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+    request.setValue("Bearer <YOUR_SUPABASE_ANON_KEY>", forHTTPHeaderField: "Authorization")
+    request.setValue("<YOUR_SUPABASE_ANON_KEY>", forHTTPHeaderField: "apikey")
+    
+    // 3️⃣ Fetch user from Supabase
+    let (data, response) = try await URLSession.shared.data(for: request)
+    
+    guard let httpResponse = response as? HTTPURLResponse,
+          (200...299).contains(httpResponse.statusCode) else {
+        let message = String(data: data, encoding: .utf8) ?? "Unknown error"
+        throw NSError(domain: "SupabaseError", code: 1, userInfo: [NSLocalizedDescriptionKey: message])
+    }
+    
+    // 4️⃣ Decode returned user array
+    let users = try JSONDecoder().decode([UserProfile].self, from: data)
+    
+    guard let user = users.first else {
+        authError = "Invalid email or password"
+        throw NSError(domain: "LoginError", code: 1, userInfo: [NSLocalizedDescriptionKey: "Invalid email or password"])
+    }
+    
+    // 5️⃣ Save locally
+    currentUser = user
+    isLoggedIn = true
+    hasCompletedOnboarding = true
+    UserDefaults.standard.set(true, forKey: "hasCompletedOnboarding")
+    saveUserLocally()
+    
+    // Optional: load buddies, diary, lists
+    loadBuddies()
+    loadLocalDiary()
+    loadLocalLists()
+}
 
     func logOut() {
         KeychainService.delete(key: tokenKey)
