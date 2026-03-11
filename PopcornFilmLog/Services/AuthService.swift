@@ -197,10 +197,13 @@ class AuthService {
             case "ACCOUNT_DISABLED": return .accountDisabled
             case "EMAIL_EXISTS": return .emailExists
             case "USERNAME_EXISTS": return .usernameExists
+            case "INVALID_USERNAME": return .invalidUsername
+            case "INVALID_PASSWORD": return .invalidPassword
             default:
                 return .serverError(errResp.message ?? errResp.error)
             }
         }
-        return .networkError("Something went wrong. Please try again.")
+        let bodyPreview = String(data: data.prefix(200), encoding: .utf8) ?? "non-UTF8"
+        return .serverError("Server error (\(statusCode)): \(bodyPreview)")
     }
 }

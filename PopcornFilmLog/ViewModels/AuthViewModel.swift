@@ -55,8 +55,10 @@ class AuthViewModel {
             isAuthenticated = true
         } catch let error as AuthError {
             errorMessage = error.errorDescription
+        } catch let urlError as URLError {
+            errorMessage = "Connection failed: \(urlError.localizedDescription)"
         } catch {
-            errorMessage = "Connection failed. Please check your internet."
+            errorMessage = "Unexpected error: \(error.localizedDescription)"
         }
         isLoading = false
     }
