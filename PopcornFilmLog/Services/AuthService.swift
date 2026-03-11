@@ -1,5 +1,4 @@
 import Foundation
-import CryptoKit
 
 nonisolated enum AuthError: Error, Sendable, LocalizedError {
     case emailExists
@@ -25,115 +24,183 @@ nonisolated enum AuthError: Error, Sendable, LocalizedError {
     }
 }
 
-nonisolated struct StoredAccount: Codable, Sendable {
+nonisolated struct AuthResponse: Codable, Sendable {
+    let token: String
+    let user: RemoteUser
+}
+
+nonisolated struct RemoteUser: Codable, Sendable {
     let id: String
     let username: String
     let email: String
-    let passwordHash: String
-    let salt: String
-    let joinDate: Date
+    let profileImageName: String?
+    let customProfileImageURL: String?
+    let bio: String?
+    let topFiveFilms: [Film]?
+    let goldenPopcornFilmId: String?
+    let buddyIds: [String]?
+    let watchlist: [Film]?
+    let diaryEntries: [LogEntry]?
+    let filmLists: [FilmList]?
+    let joinDate: String?
 }
 
-final class LocalAuthService {
-    static let shared = LocalAuthService()
-    private let accountsKey = "stored_accounts"
+nonisolated struct APIErrorResponse: Codable, Sendable {
+    let error: String
+    let message: String?
+}
+
+final class RemoteAuthService {
+    static let shared = RemoteAuthService()
+
+    private var baseURL: String {
+        Config.EXPO_PUBLIC_RORK_API_BASE_URL
+    }
 
     private init() {}
 
-    func register(username: String, email: String, password: String) throws -> StoredAccount {
-        var accounts = loadAccounts()
+    func register(username: String, email: String, password: String) async throws -> AuthResponse {
+        let url = URL(string: "\(baseURL)/api/register")!
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
 
-        if accounts.contains(where: { $0.email.lowercased() == email.lowercased() }) {
+        let body: [String: String] = [
+            "username": username,
+            "email": email,
+            "password": password
+        ]
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw AuthError.networkError("Invalid response")
+        }
+
+        if httpResponse.statusCode == 201 || httpResponse.statusCode == 200 {
+            return try JSONDecoder().decode(AuthResponse.self, from: data)
+        }
+
+        let errorResponse = try? JSONDecoder().decode(APIErrorResponse.self, from: data)
+        let errorCode = errorResponse?.error ?? ""
+
+        switch errorCode {
+        case "EMAIL_EXISTS":
             throw AuthError.emailExists
-        }
-        if accounts.contains(where: { $0.username.lowercased() == username.lowercased() }) {
+        case "USERNAME_EXISTS":
             throw AuthError.usernameExists
+        default:
+            throw AuthError.serverError(errorResponse?.message ?? "Registration failed. Please try again.")
         }
-
-        let salt = UUID().uuidString
-        let hash = hashPassword(password, salt: salt)
-
-        let account = StoredAccount(
-            id: UUID().uuidString,
-            username: username,
-            email: email.lowercased(),
-            passwordHash: hash,
-            salt: salt,
-            joinDate: Date()
-        )
-
-        accounts.append(account)
-        saveAccounts(accounts)
-        return account
     }
 
-    func login(identifier: String, password: String) throws -> StoredAccount {
-        let accounts = loadAccounts()
-        let lowered = identifier.lowercased()
+    func login(identifier: String, password: String) async throws -> AuthResponse {
+        let url = URL(string: "\(baseURL)/api/login")!
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
 
-        guard let account = accounts.first(where: {
-            $0.email.lowercased() == lowered || $0.username.lowercased() == lowered
-        }) else {
+        let body: [String: String] = [
+            "email": identifier,
+            "password": password
+        ]
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw AuthError.networkError("Invalid response")
+        }
+
+        if httpResponse.statusCode == 200 {
+            return try JSONDecoder().decode(AuthResponse.self, from: data)
+        }
+
+        let errorResponse = try? JSONDecoder().decode(APIErrorResponse.self, from: data)
+        let errorCode = errorResponse?.error ?? ""
+
+        switch errorCode {
+        case "INVALID_CREDENTIALS":
             throw AuthError.invalidCredentials
+        case "ACCOUNT_LOCKED":
+            throw AuthError.accountLocked
+        case "ACCOUNT_SUSPENDED", "ACCOUNT_DISABLED":
+            throw AuthError.serverError("Your account has been disabled.")
+        default:
+            throw AuthError.serverError(errorResponse?.message ?? "Login failed. Please try again.")
         }
-
-        let hash = hashPassword(password, salt: account.salt)
-        guard hash == account.passwordHash else {
-            throw AuthError.invalidCredentials
-        }
-
-        return account
     }
 
-    func changePassword(accountId: String, currentPassword: String, newPassword: String) throws {
-        var accounts = loadAccounts()
+    func changePassword(token: String, currentPassword: String, newPassword: String) async throws {
+        let url = URL(string: "\(baseURL)/api/change-password")!
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
 
-        guard let index = accounts.firstIndex(where: { $0.id == accountId }) else {
-            throw AuthError.userNotFound
+        let body: [String: String] = [
+            "currentPassword": currentPassword,
+            "newPassword": newPassword
+        ]
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw AuthError.networkError("Invalid response")
         }
 
-        let account = accounts[index]
-        let currentHash = hashPassword(currentPassword, salt: account.salt)
-        guard currentHash == account.passwordHash else {
-            throw AuthError.invalidCredentials
+        guard httpResponse.statusCode == 200 else {
+            let errorResponse = try? JSONDecoder().decode(APIErrorResponse.self, from: data)
+            let errorCode = errorResponse?.error ?? ""
+            if errorCode == "INVALID_CREDENTIALS" {
+                throw AuthError.invalidCredentials
+            }
+            throw AuthError.serverError(errorResponse?.message ?? "Failed to change password.")
         }
-
-        let newSalt = UUID().uuidString
-        let newHash = hashPassword(newPassword, salt: newSalt)
-
-        accounts[index] = StoredAccount(
-            id: account.id,
-            username: account.username,
-            email: account.email,
-            passwordHash: newHash,
-            salt: newSalt,
-            joinDate: account.joinDate
-        )
-        saveAccounts(accounts)
     }
 
-    func deleteAccount(accountId: String) {
-        var accounts = loadAccounts()
-        accounts.removeAll { $0.id == accountId }
-        saveAccounts(accounts)
-    }
+    func deleteAccount(token: String) async throws {
+        let url = URL(string: "\(baseURL)/api/delete-account")!
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
 
-    private func hashPassword(_ password: String, salt: String) -> String {
-        let input = Data((password + salt).utf8)
-        let hashed = SHA256.hash(data: input)
-        return hashed.compactMap { String(format: "%02x", $0) }.joined()
-    }
+        let (_, response) = try await URLSession.shared.data(for: request)
 
-    private func loadAccounts() -> [StoredAccount] {
-        guard let data = UserDefaults.standard.data(forKey: accountsKey),
-              let accounts = try? JSONDecoder().decode([StoredAccount].self, from: data) else {
-            return []
+        guard let httpResponse = response as? HTTPURLResponse,
+              httpResponse.statusCode == 200 else {
+            throw AuthError.serverError("Failed to delete account.")
         }
-        return accounts
     }
 
-    private func saveAccounts(_ accounts: [StoredAccount]) {
-        guard let data = try? JSONEncoder().encode(accounts) else { return }
-        UserDefaults.standard.set(data, forKey: accountsKey)
+    func syncData(token: String, diaryEntries: [LogEntry], filmLists: [FilmList]) async {
+        guard let url = URL(string: "\(baseURL)/api/sync-data") else { return }
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+
+        let body: [String: Any] = [
+            "diaryEntries": (try? JSONSerialization.jsonObject(with: JSONEncoder().encode(diaryEntries))) ?? [],
+            "filmLists": (try? JSONSerialization.jsonObject(with: JSONEncoder().encode(filmLists))) ?? []
+        ]
+        request.httpBody = try? JSONSerialization.data(withJSONObject: body)
+
+        _ = try? await URLSession.shared.data(for: request)
+    }
+
+    func updateProfile(token: String, updates: [String: Any]) async {
+        guard let url = URL(string: "\(baseURL)/api/update-profile") else { return }
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+
+        request.httpBody = try? JSONSerialization.data(withJSONObject: updates)
+
+        _ = try? await URLSession.shared.data(for: request)
     }
 }

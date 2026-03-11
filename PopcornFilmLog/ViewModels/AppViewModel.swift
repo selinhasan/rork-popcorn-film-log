@@ -23,11 +23,16 @@ class AppViewModel {
     var isSyncing = false
 
     private let tmdb = TMDbService.shared
-    private let localAuth = LocalAuthService.shared
+    private let remoteAuth = RemoteAuthService.shared
+    private let tokenKey = "auth_token"
     private let accountIdKey = "auth_account_id"
 
+    private var authToken: String? {
+        KeychainService.load(key: tokenKey)
+    }
+
     init() {
-        if let _ = KeychainService.load(key: accountIdKey),
+        if let token = KeychainService.load(key: tokenKey), !token.isEmpty,
            let data = UserDefaults.standard.data(forKey: "currentUser"),
            let user = try? JSONDecoder().decode(UserProfile.self, from: data) {
             currentUser = user
@@ -100,13 +105,14 @@ class AppViewModel {
 
     func signUp(username: String, email: String, password: String) async throws {
         authError = nil
-        let account = try localAuth.register(username: username, email: email, password: password)
-        KeychainService.save(key: accountIdKey, value: account.id)
+        let response = try await remoteAuth.register(username: username, email: email, password: password)
+        KeychainService.save(key: tokenKey, value: response.token)
+
         let user = UserProfile(
-            id: account.id,
-            username: account.username,
-            email: account.email,
-            joinDate: account.joinDate
+            id: response.user.id,
+            username: response.user.username,
+            email: response.user.email,
+            joinDate: ISO8601DateFormatter().date(from: response.user.joinDate ?? "") ?? Date()
         )
         currentUser = user
         isLoggedIn = true
@@ -116,26 +122,47 @@ class AppViewModel {
 
     func logIn(email: String, password: String) async throws {
         authError = nil
-        let account = try localAuth.login(identifier: email, password: password)
-        KeychainService.save(key: accountIdKey, value: account.id)
+        let response = try await remoteAuth.login(identifier: email, password: password)
+        KeychainService.save(key: tokenKey, value: response.token)
+
         let user = UserProfile(
-            id: account.id,
-            username: account.username,
-            email: account.email,
-            joinDate: account.joinDate
+            id: response.user.id,
+            username: response.user.username,
+            email: response.user.email,
+            profileImageName: response.user.profileImageName ?? "avatar_1",
+            customProfileImageURL: response.user.customProfileImageURL,
+            bio: response.user.bio ?? "",
+            topFiveFilms: response.user.topFiveFilms ?? [],
+            goldenPopcornFilmId: response.user.goldenPopcornFilmId,
+            buddyIds: response.user.buddyIds ?? [],
+            watchlist: response.user.watchlist ?? [],
+            joinDate: ISO8601DateFormatter().date(from: response.user.joinDate ?? "") ?? Date()
         )
         currentUser = user
         isLoggedIn = true
         hasCompletedOnboarding = true
         UserDefaults.standard.set(true, forKey: "hasCompletedOnboarding")
 
-        loadLocalDiary()
-        loadLocalLists()
+        if let entries = response.user.diaryEntries, !entries.isEmpty {
+            diaryEntries = entries
+            saveLocalDiary()
+        } else {
+            loadLocalDiary()
+        }
+
+        if let lists = response.user.filmLists, !lists.isEmpty {
+            filmLists = lists
+            saveLocalLists()
+        } else {
+            loadLocalLists()
+        }
+
         saveUserLocally()
         loadBuddies()
     }
 
     func logOut() {
+        KeychainService.delete(key: tokenKey)
         KeychainService.delete(key: accountIdKey)
         currentUser = nil
         isLoggedIn = false
@@ -152,10 +179,12 @@ class AppViewModel {
     }
 
     func deleteAccount() {
-        if let accountId = KeychainService.load(key: accountIdKey) {
-            localAuth.deleteAccount(accountId: accountId)
+        Task {
+            if let token = authToken {
+                try? await remoteAuth.deleteAccount(token: token)
+            }
+            logOut()
         }
-        logOut()
     }
 
     func completeOnboarding() {
@@ -168,10 +197,10 @@ class AppViewModel {
     }
 
     func changePassword(current: String, new: String) async throws {
-        guard let accountId = KeychainService.load(key: accountIdKey) else {
+        guard let token = authToken else {
             throw AuthError.unauthorized
         }
-        try localAuth.changePassword(accountId: accountId, currentPassword: current, newPassword: new)
+        try await remoteAuth.changePassword(token: token, currentPassword: current, newPassword: new)
     }
 
     // MARK: - Profile
@@ -432,16 +461,38 @@ class AppViewModel {
         return minutes
     }
 
-
-
     private func syncProfileToServer() {
         saveUserLocally()
+        guard let token = authToken, let user = currentUser else { return }
+        Task {
+            var updates: [String: Any] = [:]
+            updates["username"] = user.username
+            updates["profileImageName"] = user.profileImageName
+            updates["bio"] = user.bio
+            if let customURL = user.customProfileImageURL {
+                updates["customProfileImageURL"] = customURL
+            }
+            if let goldenId = user.goldenPopcornFilmId {
+                updates["goldenPopcornFilmId"] = goldenId
+            }
+            if let watchlistData = try? JSONSerialization.jsonObject(with: JSONEncoder().encode(user.watchlist)) {
+                updates["watchlist"] = watchlistData
+            }
+            if let topFiveData = try? JSONSerialization.jsonObject(with: JSONEncoder().encode(user.topFiveFilms)) {
+                updates["topFiveFilms"] = topFiveData
+            }
+            await remoteAuth.updateProfile(token: token, updates: updates)
+        }
     }
 
     private func syncDataToServer() {
         saveLocalDiary()
         saveLocalLists()
         saveUserLocally()
+        guard let token = authToken else { return }
+        Task {
+            await remoteAuth.syncData(token: token, diaryEntries: diaryEntries, filmLists: filmLists)
+        }
     }
 
     private func saveUserLocally() {
@@ -477,7 +528,3 @@ class AppViewModel {
         posts = MockDataService.samplePosts
     }
 }
-
-
-
-
