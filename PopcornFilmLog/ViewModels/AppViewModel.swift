@@ -572,7 +572,7 @@ class AppViewModel {
 
 // for testing
 func debugLoginPOST(email: String, password: String) async {
-    guard let url = URL(string: "https://YOUR-VERCEL-URL/api/login") else {
+    guard let url = URL(string: "https://rork-popcorn-film-log.vercel.app/api/login") else {
         print("Invalid URL")
         return
     }
