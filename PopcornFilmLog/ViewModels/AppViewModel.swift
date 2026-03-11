@@ -135,7 +135,7 @@ func signUp(username: String, email: String, password: String) async throws {
     request.httpBody = jsonData
     request.setValue("application/json", forHTTPHeaderField: "Content-Type")
     request.setValue("Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5tY2d5ZmFpeHl4bWtwbWh1emxmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI5MTY4NjUsImV4cCI6MjA4ODQ5Mjg2NX0.Gc7TKjB1J4tSDrNfUXmND9YKBC4-aFvfCgit59DqMvY", forHTTPHeaderField: "Authorization")
-    request.setValue("<YOUR_SUPABASE_ANON_KEY>", forHTTPHeaderField: "apikey")
+    request.setValue("eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5tY2d5ZmFpeHl4bWtwbWh1emxmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI5MTY4NjUsImV4cCI6MjA4ODQ5Mjg2NX0.Gc7TKjB1J4tSDrNfUXmND9YKBC4-aFvfCgit59DqMvY", forHTTPHeaderField: "apikey")
     
     // 6️⃣ Send POST request
     let (data, response) = try await URLSession.shared.data(for: request)
@@ -182,13 +182,13 @@ func logIn(email: String, password: String) async throws {
         throw NSError(domain: "LoginError", code: 1, userInfo: [NSLocalizedDescriptionKey: "Invalid filter"])
     }
     
-    let url = URL(string: "https://<YOUR_SUPABASE_PROJECT_REF>.supabase.co/rest/v1/users?\(encodedFilter)")!
+    let url = URL(string: "https://nmcgyfaixyxmkpmhuzlf.supabase.co/rest/v1/users?\(encodedFilter)")!
     
     var request = URLRequest(url: url)
     request.httpMethod = "GET"
     request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-    request.setValue("Bearer <YOUR_SUPABASE_ANON_KEY>", forHTTPHeaderField: "Authorization")
-    request.setValue("<YOUR_SUPABASE_ANON_KEY>", forHTTPHeaderField: "apikey")
+    request.setValue("Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5tY2d5ZmFpeHl4bWtwbWh1emxmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI5MTY4NjUsImV4cCI6MjA4ODQ5Mjg2NX0.Gc7TKjB1J4tSDrNfUXmND9YKBC4-aFvfCgit59DqMvY", forHTTPHeaderField: "Authorization")
+    request.setValue("eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5tY2d5ZmFpeHl4bWtwbWh1emxmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI5MTY4NjUsImV4cCI6MjA4ODQ5Mjg2NX0.Gc7TKjB1J4tSDrNfUXmND9YKBC4-aFvfCgit59DqMvY", forHTTPHeaderField: "apikey")
     
     // 3️⃣ Fetch user from Supabase
     let (data, response) = try await URLSession.shared.data(for: request)
