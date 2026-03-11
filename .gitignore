@@ -28,3 +28,8 @@ rork-eslint.config.js
 .env
 core
 .env.local
+
+ios/
+android/
+node_modules
+.expo
