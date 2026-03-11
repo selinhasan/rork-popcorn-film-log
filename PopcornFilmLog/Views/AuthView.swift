@@ -573,3 +573,9 @@ struct AuthView: View {
         .presentationDetents([.medium])
     }
 }
+//testing
+Button("Debug Login POST") {
+    Task {
+        await viewModel.debugLoginPOST(email: "test@example.com", password: "password123")
+    }
+}
