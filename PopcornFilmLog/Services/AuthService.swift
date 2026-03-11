@@ -145,7 +145,7 @@ nonisolated final class AuthClient: Sendable {
             throw AuthError.networkError("Server URL not configured")
         }
 
-        let urlString = "\(baseURL)/\(endpoint)"
+        let urlString = "\(baseURL)/api/\(endpoint)"
 
         guard let url = URL(string: urlString) else {
             throw AuthError.networkError("Invalid URL")
