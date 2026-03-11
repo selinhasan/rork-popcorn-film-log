@@ -573,4 +573,3 @@ struct AuthView: View {
         .presentationDetents([.medium])
     }
 }
-
