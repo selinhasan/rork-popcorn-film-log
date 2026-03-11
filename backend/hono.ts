@@ -114,172 +114,184 @@ async function authenticateRequest(authHeader: string | undefined): Promise<stri
   }
 }
 
-app.get("/", (c) => c.json({ status: "ok", message: "Popcorn Film Log API v1" }));
+app.get("/", (c) => c.json({ status: "ok", version: "v1" }));
 
 app.post("/login", async (c) => {
-  const body = await c.req.json();
-  const { email, password } = body;
+  try {
+    const body = await c.req.json();
+    const { email, password } = body;
 
-  if (!email || !password) {
-    return c.json({ error: "Email and password are required" }, 400);
-  }
+    if (!email || !password) {
+      return c.json({ error: "Email and password are required" }, 400);
+    }
 
-  const supabase = getSupabase();
-  const identifier = email.toLowerCase().trim();
+    const supabase = getSupabase();
+    const identifier = email.toLowerCase().trim();
 
-  let { data: user, error: userError } = await supabase
-    .from("users")
-    .select("*")
-    .eq("email", identifier)
-    .maybeSingle();
-
-  if (userError) return c.json({ error: "FAILED_TO_LOAD_USER" }, 500);
-
-  if (!user) {
-    const { data: byUsername, error: usernameErr } = await supabase
+    let { data: user, error: userError } = await supabase
       .from("users")
       .select("*")
-      .eq("username_lower", identifier)
+      .eq("email", identifier)
       .maybeSingle();
 
-    if (usernameErr) return c.json({ error: "FAILED_TO_LOAD_USER" }, 500);
-    user = byUsername;
-  }
+    if (userError) return c.json({ error: "FAILED_TO_LOAD_USER" }, 500);
 
-  if (!user) return c.json({ error: "INVALID_CREDENTIALS" }, 401);
-
-  let userRow = user as UserRow;
-
-  if (userRow.status === "locked") {
-    const lastFailed = userRow.last_failed_login ? new Date(userRow.last_failed_login).getTime() : null;
-    const lockExpired = lastFailed !== null && Date.now() - lastFailed > LOCK_DURATION_MS;
-
-    if (lockExpired) {
-      const { data: reset, error: resetErr } = await supabase
+    if (!user) {
+      const { data: byUsername, error: usernameErr } = await supabase
         .from("users")
-        .update({ status: "active", login_attempts: 0, last_failed_login: null, updated_at: new Date().toISOString() })
-        .eq("id", userRow.id)
         .select("*")
-        .single();
+        .eq("username_lower", identifier)
+        .maybeSingle();
 
-      if (resetErr || !reset) return c.json({ error: "FAILED_TO_RESET_LOCK" }, 500);
-      userRow = reset as UserRow;
-    } else {
-      return c.json({ error: "ACCOUNT_LOCKED" }, 403);
+      if (usernameErr) return c.json({ error: "FAILED_TO_LOAD_USER" }, 500);
+      user = byUsername;
     }
-  }
 
-  if (userRow.status === "suspended") return c.json({ error: "ACCOUNT_SUSPENDED" }, 403);
-  if (userRow.status !== "active") return c.json({ error: "ACCOUNT_DISABLED" }, 403);
+    if (!user) return c.json({ error: "INVALID_CREDENTIALS" }, 401);
 
-  const valid = await verifyPassword(password, userRow.password_hash);
+    let userRow = user as UserRow;
 
-  if (!valid) {
-    const newAttempts = (userRow.login_attempts || 0) + 1;
+    if (userRow.status === "locked") {
+      const lastFailed = userRow.last_failed_login ? new Date(userRow.last_failed_login).getTime() : null;
+      const lockExpired = lastFailed !== null && Date.now() - lastFailed > LOCK_DURATION_MS;
+
+      if (lockExpired) {
+        const { data: reset, error: resetErr } = await supabase
+          .from("users")
+          .update({ status: "active", login_attempts: 0, last_failed_login: null, updated_at: new Date().toISOString() })
+          .eq("id", userRow.id)
+          .select("*")
+          .single();
+
+        if (resetErr || !reset) return c.json({ error: "FAILED_TO_RESET_LOCK" }, 500);
+        userRow = reset as UserRow;
+      } else {
+        return c.json({ error: "ACCOUNT_LOCKED" }, 403);
+      }
+    }
+
+    if (userRow.status === "suspended") return c.json({ error: "ACCOUNT_SUSPENDED" }, 403);
+    if (userRow.status !== "active") return c.json({ error: "ACCOUNT_DISABLED" }, 403);
+
+    const valid = await verifyPassword(password, userRow.password_hash);
+
+    if (!valid) {
+      const newAttempts = (userRow.login_attempts || 0) + 1;
+      const now = new Date().toISOString();
+      const updates: Record<string, unknown> = { login_attempts: newAttempts, last_failed_login: now, updated_at: now };
+      if (newAttempts >= MAX_LOGIN_ATTEMPTS) updates.status = "locked";
+      await supabase.from("users").update(updates).eq("id", userRow.id);
+      return c.json({ error: "INVALID_CREDENTIALS" }, 401);
+    }
+
     const now = new Date().toISOString();
-    const updates: Record<string, unknown> = { login_attempts: newAttempts, last_failed_login: now, updated_at: now };
-    if (newAttempts >= MAX_LOGIN_ATTEMPTS) updates.status = "locked";
-    await supabase.from("users").update(updates).eq("id", userRow.id);
-    return c.json({ error: "INVALID_CREDENTIALS" }, 401);
+    const { data: updatedUser, error: loginUpdateErr } = await supabase
+      .from("users")
+      .update({ status: "active", login_attempts: 0, last_failed_login: null, last_login_at: now, updated_at: now })
+      .eq("id", userRow.id)
+      .select("*")
+      .single();
+
+    if (loginUpdateErr || !updatedUser) return c.json({ error: "FAILED_TO_UPDATE_LOGIN_STATE" }, 500);
+
+    const token = await generateToken(userRow.id);
+    return c.json({ token, user: sanitizeUser(updatedUser as UserRow) });
+  } catch (err) {
+    return c.json({ error: "INTERNAL_ERROR", message: String(err) }, 500);
   }
-
-  const now = new Date().toISOString();
-  const { data: updatedUser, error: loginUpdateErr } = await supabase
-    .from("users")
-    .update({ status: "active", login_attempts: 0, last_failed_login: null, last_login_at: now, updated_at: now })
-    .eq("id", userRow.id)
-    .select("*")
-    .single();
-
-  if (loginUpdateErr || !updatedUser) return c.json({ error: "FAILED_TO_UPDATE_LOGIN_STATE" }, 500);
-
-  const token = await generateToken(userRow.id);
-  return c.json({ token, user: sanitizeUser(updatedUser as UserRow) });
 });
 
 app.post("/register", async (c) => {
-  const body = await c.req.json();
-  const { username, email, password } = body;
+  try {
+    const body = await c.req.json();
+    const { username, email, password } = body;
 
-  if (!username || !email || !password) {
-    return c.json({ error: "Username, email, and password are required" }, 400);
+    if (!username || !email || !password) {
+      return c.json({ error: "Username, email, and password are required" }, 400);
+    }
+
+    if (username.length < 3 || username.length > 20 || !/^[a-zA-Z0-9._]+$/.test(username)) {
+      return c.json({ error: "INVALID_USERNAME", message: "Username must be 3-20 characters (letters, numbers, dots, underscores)." }, 400);
+    }
+
+    if (password.length < 6 || password.length > 128) {
+      return c.json({ error: "INVALID_PASSWORD", message: "Password must be between 6 and 128 characters." }, 400);
+    }
+
+    const supabase = getSupabase();
+    const emailLower = email.toLowerCase().trim();
+    const usernameLower = username.toLowerCase().trim();
+
+    const { data: existingEmail } = await supabase.from("users").select("id").eq("email", emailLower).maybeSingle();
+    if (existingEmail) return c.json({ error: "EMAIL_EXISTS", message: "This email is already connected to an account." }, 409);
+
+    const { data: existingUsername } = await supabase.from("users").select("id").eq("username_lower", usernameLower).maybeSingle();
+    if (existingUsername) return c.json({ error: "USERNAME_EXISTS", message: "This username is already taken." }, 409);
+
+    const passwordHash = await hashPassword(password);
+    const userId = crypto.randomUUID();
+    const now = new Date().toISOString();
+
+    const { data: newUser, error } = await supabase
+      .from("users")
+      .insert({
+        id: userId,
+        username: username.trim(),
+        username_lower: usernameLower,
+        email: emailLower,
+        password_hash: passwordHash,
+        profile_image_name: "avatar_1",
+        custom_profile_image_url: null,
+        bio: "",
+        top_five_films: [],
+        golden_popcorn_film_id: null,
+        buddy_ids: [],
+        watchlist: [],
+        diary_entries: [],
+        film_lists: [],
+        status: "active",
+        login_attempts: 0,
+        last_failed_login: null,
+        last_login_at: now,
+        created_at: now,
+        updated_at: now,
+      })
+      .select("*")
+      .single();
+
+    if (error || !newUser) return c.json({ error: "FAILED_TO_CREATE_ACCOUNT", message: String(error) }, 500);
+
+    const token = await generateToken(userId);
+    return c.json({ token, user: sanitizeUser(newUser as UserRow) }, 201);
+  } catch (err) {
+    return c.json({ error: "INTERNAL_ERROR", message: String(err) }, 500);
   }
-
-  if (username.length < 3 || username.length > 20 || !/^[a-zA-Z0-9._]+$/.test(username)) {
-    return c.json({ error: "INVALID_USERNAME", message: "Username must be 3-20 characters (letters, numbers, dots, underscores)." }, 400);
-  }
-
-  if (password.length < 6 || password.length > 128) {
-    return c.json({ error: "INVALID_PASSWORD", message: "Password must be between 6 and 128 characters." }, 400);
-  }
-
-  const supabase = getSupabase();
-  const emailLower = email.toLowerCase().trim();
-  const usernameLower = username.toLowerCase().trim();
-
-  const { data: existingEmail } = await supabase.from("users").select("id").eq("email", emailLower).maybeSingle();
-  if (existingEmail) return c.json({ error: "EMAIL_EXISTS", message: "This email is already connected to an account." }, 409);
-
-  const { data: existingUsername } = await supabase.from("users").select("id").eq("username_lower", usernameLower).maybeSingle();
-  if (existingUsername) return c.json({ error: "USERNAME_EXISTS", message: "This username is already taken." }, 409);
-
-  const passwordHash = await hashPassword(password);
-  const userId = crypto.randomUUID();
-  const now = new Date().toISOString();
-
-  const { data: newUser, error } = await supabase
-    .from("users")
-    .insert({
-      id: userId,
-      username: username.trim(),
-      username_lower: usernameLower,
-      email: emailLower,
-      password_hash: passwordHash,
-      profile_image_name: "avatar_1",
-      custom_profile_image_url: null,
-      bio: "",
-      top_five_films: [],
-      golden_popcorn_film_id: null,
-      buddy_ids: [],
-      watchlist: [],
-      diary_entries: [],
-      film_lists: [],
-      status: "active",
-      login_attempts: 0,
-      last_failed_login: null,
-      last_login_at: now,
-      created_at: now,
-      updated_at: now,
-    })
-    .select("*")
-    .single();
-
-  if (error || !newUser) return c.json({ error: "FAILED_TO_CREATE_ACCOUNT" }, 500);
-
-  const token = await generateToken(userId);
-  return c.json({ token, user: sanitizeUser(newUser as UserRow) }, 201);
 });
 
 app.get("/get-profile", async (c) => {
-  const userId = await authenticateRequest(c.req.header("Authorization"));
-  if (!userId) return c.json({ error: "UNAUTHORIZED" }, 401);
+  try {
+    const userId = await authenticateRequest(c.req.header("Authorization"));
+    if (!userId) return c.json({ error: "UNAUTHORIZED" }, 401);
 
-  const supabase = getSupabase();
+    const supabase = getSupabase();
 
-  const { data: authUser } = await supabase
-    .from("users")
-    .select("id, status, last_failed_login, login_attempts")
-    .eq("id", userId)
-    .maybeSingle();
+    const { data: authUser } = await supabase
+      .from("users")
+      .select("id, status, last_failed_login, login_attempts")
+      .eq("id", userId)
+      .maybeSingle();
 
-  if (!authUser) return c.json({ error: "UNAUTHORIZED" }, 401);
-  if (authUser.status === "suspended") return c.json({ error: "ACCOUNT_SUSPENDED" }, 403);
-  if (authUser.status !== "active" && authUser.status !== "locked") return c.json({ error: "ACCOUNT_DISABLED" }, 403);
+    if (!authUser) return c.json({ error: "UNAUTHORIZED" }, 401);
+    if (authUser.status === "suspended") return c.json({ error: "ACCOUNT_SUSPENDED" }, 403);
+    if (authUser.status !== "active" && authUser.status !== "locked") return c.json({ error: "ACCOUNT_DISABLED" }, 403);
 
-  const { data: user, error } = await supabase.from("users").select("*").eq("id", userId).single();
-  if (error || !user) return c.json({ error: "USER_NOT_FOUND" }, 404);
+    const { data: user, error } = await supabase.from("users").select("*").eq("id", userId).single();
+    if (error || !user) return c.json({ error: "USER_NOT_FOUND" }, 404);
 
-  return c.json({ user: sanitizeUser(user as UserRow) });
+    return c.json({ user: sanitizeUser(user as UserRow) });
+  } catch (err) {
+    return c.json({ error: "INTERNAL_ERROR", message: String(err) }, 500);
+  }
 });
 
 export default app;
