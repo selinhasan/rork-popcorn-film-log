@@ -6,8 +6,7 @@ struct SettingsView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var showEditProfile = false
     @State private var showImportSheet = false
-    @State private var showLogoutAlert = false
-    @State private var showDeleteAlert = false
+
     @State private var notificationsEnabled = true
     @State private var soundEnabled = true
 
@@ -31,18 +30,7 @@ struct SettingsView: View {
             .sheet(isPresented: $showEditProfile) {
                 EditProfileSheet()
             }
-            .alert("Log Out", isPresented: $showLogoutAlert) {
-                Button("Log Out", role: .destructive) { viewModel.logOut() }
-                Button("Cancel", role: .cancel) {}
-            } message: {
-                Text("Are you sure you want to log out?")
-            }
-            .alert("Delete Account", isPresented: $showDeleteAlert) {
-                Button("Delete", role: .destructive) { viewModel.deleteAccount() }
-                Button("Cancel", role: .cancel) {}
-            } message: {
-                Text("This will permanently delete your account and all your data. This cannot be undone.")
-            }
+
             .alert("Import", isPresented: $showImportSheet) {
                 Button("OK") {}
             } message: {
@@ -75,41 +63,7 @@ struct SettingsView: View {
                     settingsRow(icon: "doc.badge.arrow.up", title: "Import from Spreadsheet", showChevron: true)
                 }
 
-                Button {
-                    showLogoutAlert = true
-                } label: {
-                    HStack(spacing: 12) {
-                        Image(systemName: "rectangle.portrait.and.arrow.right")
-                            .font(.body)
-                            .foregroundStyle(PopcornTheme.warmRed)
-                            .frame(width: 28)
-                        Text("Log Out")
-                            .font(.body)
-                            .foregroundStyle(PopcornTheme.warmRed)
-                        Spacer()
-                    }
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 14)
-                    .background(Color.white)
-                }
 
-                Button {
-                    showDeleteAlert = true
-                } label: {
-                    HStack(spacing: 12) {
-                        Image(systemName: "trash.fill")
-                            .font(.body)
-                            .foregroundStyle(.red)
-                            .frame(width: 28)
-                        Text("Delete Account")
-                            .font(.body)
-                            .foregroundStyle(.red)
-                        Spacer()
-                    }
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 14)
-                    .background(Color.white)
-                }
             }
             .clipShape(.rect(cornerRadius: 14))
             .padding(.horizontal)
@@ -164,8 +118,7 @@ struct EditProfileSheet: View {
     @State private var bio = ""
     @State private var selectedAvatar = "avatar_1"
     @State private var customImageURL = ""
-    @State private var password = ""
-    @State private var newPassword = ""
+
     @State private var selectedPhotoItem: PhotosPickerItem?
 
     var body: some View {
@@ -228,10 +181,7 @@ struct EditProfileSheet: View {
                         .lineLimit(2...4)
                 }
 
-                Section("Change Password") {
-                    SecureField("Current Password", text: $password)
-                    SecureField("New Password", text: $newPassword)
-                }
+
             }
             .navigationTitle("Edit Profile")
             .navigationBarTitleDisplayMode(.inline)

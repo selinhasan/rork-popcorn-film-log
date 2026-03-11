@@ -1,11 +1,8 @@
 import SwiftUI
-import CryptoKit
 
 @Observable
 @MainActor
 class AppViewModel {
-    var isLoggedIn: Bool = false
-    var hasCompletedOnboarding: Bool = false
     var currentUser: UserProfile?
     var diaryEntries: [LogEntry] = []
     var buddies: [UserProfile] = []
@@ -20,29 +17,25 @@ class AppViewModel {
     var isLoadingTrending = false
     var isSearching = false
 
-    var authError: String?
-    var isSyncing = false
-
     private let tmdb = TMDbService.shared
-    private let remoteAuth = RemoteAuthService.shared
-    private let tokenKey = "auth_token"
-    private let accountIdKey = "auth_account_id"
-
-    private var authToken: String? {
-        KeychainService.load(key: tokenKey)
-    }
 
     init() {
-        if let token = KeychainService.load(key: tokenKey), !token.isEmpty,
-           let data = UserDefaults.standard.data(forKey: "currentUser"),
+        if let data = UserDefaults.standard.data(forKey: "currentUser"),
            let user = try? JSONDecoder().decode(UserProfile.self, from: data) {
             currentUser = user
-            isLoggedIn = true
-            hasCompletedOnboarding = UserDefaults.standard.bool(forKey: "hasCompletedOnboarding")
-            loadLocalDiary()
-            loadLocalLists()
-            loadBuddies()
+        } else {
+            let defaultUser = UserProfile(
+                username: "Film Fan",
+                email: "local@popcorn.app",
+                profileImageName: "avatar_1",
+                bio: ""
+            )
+            currentUser = defaultUser
+            saveUserLocally()
         }
+        loadLocalDiary()
+        loadLocalLists()
+        loadBuddies()
         Task { await loadTMDbData() }
     }
 
@@ -102,166 +95,6 @@ class AppViewModel {
         }
     }
 
-    // MARK: - Auth
-
-func signUp(username: String, email: String, password: String) async throws {
-    authError = nil
-    
-    // 1️⃣ Generate UUID for the new user
-    let userId = UUID().uuidString
-    
-    // 2️⃣ Lowercase username
-    let usernameLower = username.lowercased()
-    
-    // 3️⃣ Hash password using SHA256
-    let passwordHash = SHA256.hash(data: Data(password.utf8)).compactMap { String(format: "%02x", $0) }.joined()
-    
-    // 4️⃣ Create POST body
-    let body: [String: Any] = [
-        "id": userId,
-        "username": username,
-        "username_lower": usernameLower,
-        "email": email,
-        "password_hash": passwordHash
-    ]
-    
-    let jsonData = try JSONSerialization.data(withJSONObject: body)
-    
-    // 5️⃣ Supabase URL for public.users
-    let url = URL(string: "https://nmcgyfaixyxmkpmhuzlf.supabase.co/rest/v1/users")!
-    
-    var request = URLRequest(url: url)
-    request.httpMethod = "POST"
-    request.httpBody = jsonData
-    request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-    request.setValue("Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5tY2d5ZmFpeHl4bWtwbWh1emxmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI5MTY4NjUsImV4cCI6MjA4ODQ5Mjg2NX0.Gc7TKjB1J4tSDrNfUXmND9YKBC4-aFvfCgit59DqMvY", forHTTPHeaderField: "Authorization")
-    request.setValue("eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5tY2d5ZmFpeHl4bWtwbWh1emxmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI5MTY4NjUsImV4cCI6MjA4ODQ5Mjg2NX0.Gc7TKjB1J4tSDrNfUXmND9YKBC4-aFvfCgit59DqMvY", forHTTPHeaderField: "apikey")
-    
-    // 6️⃣ Send POST request
-    let (data, response) = try await URLSession.shared.data(for: request)
-    
-    guard let httpResponse = response as? HTTPURLResponse,
-          (200...299).contains(httpResponse.statusCode) else {
-        let message = String(data: data, encoding: .utf8) ?? "Unknown error"
-        throw NSError(domain: "SupabaseError", code: 1, userInfo: [NSLocalizedDescriptionKey: message])
-    }
-    
-    // 7️⃣ Update currentUser locally
-    let newUser = UserProfile(
-        id: userId,
-        username: username,
-        email: email,
-        profileImageName: "avatar_1",
-        customProfileImageURL: nil,
-        bio: "",
-        topFiveFilms: [],
-        goldenPopcornFilmId: nil,
-        buddyIds: [],
-        watchlist: [],
-        joinDate: Date()
-    )
-    
-    currentUser = newUser
-    isLoggedIn = true
-    saveUserLocally()
-    loadBuddies()
-}
-
-func logIn(email: String, password: String) async throws {
-    authError = nil
-    
-    // 1️⃣ Hash the password
-    let passwordHash = SHA256.hash(data: Data(password.utf8))
-        .compactMap { String(format: "%02x", $0) }
-        .joined()
-    
-    // 2️⃣ Supabase REST URL with filter for email and password_hash
-    // URL encodes filter query
-    let filter = "email=eq.\(email)&password_hash=eq.\(passwordHash)"
-    guard let encodedFilter = filter.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) else {
-        throw NSError(domain: "LoginError", code: 1, userInfo: [NSLocalizedDescriptionKey: "Invalid filter"])
-    }
-    
-    let url = URL(string: "https://nmcgyfaixyxmkpmhuzlf.supabase.co/rest/v1/users?\(encodedFilter)")!
-    
-    var request = URLRequest(url: url)
-    request.httpMethod = "GET"
-    request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-    request.setValue("Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5tY2d5ZmFpeHl4bWtwbWh1emxmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI5MTY4NjUsImV4cCI6MjA4ODQ5Mjg2NX0.Gc7TKjB1J4tSDrNfUXmND9YKBC4-aFvfCgit59DqMvY", forHTTPHeaderField: "Authorization")
-    request.setValue("eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5tY2d5ZmFpeHl4bWtwbWh1emxmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI5MTY4NjUsImV4cCI6MjA4ODQ5Mjg2NX0.Gc7TKjB1J4tSDrNfUXmND9YKBC4-aFvfCgit59DqMvY", forHTTPHeaderField: "apikey")
-    
-    // 3️⃣ Fetch user from Supabase
-    let (data, response) = try await URLSession.shared.data(for: request)
-    
-    guard let httpResponse = response as? HTTPURLResponse,
-          (200...299).contains(httpResponse.statusCode) else {
-        let message = String(data: data, encoding: .utf8) ?? "Unknown error"
-        throw NSError(domain: "SupabaseError", code: 1, userInfo: [NSLocalizedDescriptionKey: message])
-    }
-    
-    // 4️⃣ Decode returned user array
-    let users = try JSONDecoder().decode([UserProfile].self, from: data)
-    
-    guard let user = users.first else {
-        authError = "Invalid email or password"
-        throw NSError(domain: "LoginError", code: 1, userInfo: [NSLocalizedDescriptionKey: "Invalid email or password"])
-    }
-    
-    // 5️⃣ Save locally
-    currentUser = user
-    isLoggedIn = true
-    hasCompletedOnboarding = true
-    UserDefaults.standard.set(true, forKey: "hasCompletedOnboarding")
-    saveUserLocally()
-    
-    // Optional: load buddies, diary, lists
-    loadBuddies()
-    loadLocalDiary()
-    loadLocalLists()
-}
-
-    func logOut() {
-        KeychainService.delete(key: tokenKey)
-        KeychainService.delete(key: accountIdKey)
-        currentUser = nil
-        isLoggedIn = false
-        hasCompletedOnboarding = false
-        diaryEntries = []
-        buddies = []
-        buddyLogs = []
-        posts = []
-        filmLists = []
-        UserDefaults.standard.removeObject(forKey: "currentUser")
-        UserDefaults.standard.removeObject(forKey: "diaryEntries")
-        UserDefaults.standard.removeObject(forKey: "filmLists")
-        UserDefaults.standard.set(false, forKey: "hasCompletedOnboarding")
-    }
-
-    func deleteAccount() {
-        Task {
-            if let token = authToken {
-                try? await remoteAuth.deleteAccount(token: token)
-            }
-            logOut()
-        }
-    }
-
-    func completeOnboarding() {
-        hasCompletedOnboarding = true
-        UserDefaults.standard.set(true, forKey: "hasCompletedOnboarding")
-    }
-
-    func requestPasswordReset(email: String) async -> Bool {
-        return true
-    }
-
-    func changePassword(current: String, new: String) async throws {
-        guard let token = authToken else {
-            throw AuthError.unauthorized
-        }
-        try await remoteAuth.changePassword(token: token, currentPassword: current, newPassword: new)
-    }
-
     // MARK: - Profile
 
     func updateProfile(username: String? = nil, profileImage: String? = nil, customImageURL: String? = nil, bio: String? = nil, topFive: [Film]? = nil) {
@@ -271,7 +104,6 @@ func logIn(email: String, password: String) async throws {
         if let bio { currentUser?.bio = bio }
         if let topFive { currentUser?.topFiveFilms = topFive }
         saveUserLocally()
-        syncProfileToServer()
     }
 
     func setGoldenPopcorn(filmId: String) {
@@ -281,7 +113,6 @@ func logIn(email: String, password: String) async throws {
         currentUser?.goldenPopcornFilmId = filmId
         saveLocalDiary()
         saveUserLocally()
-        syncDataToServer()
     }
 
     // MARK: - Film Logging
@@ -317,7 +148,6 @@ func logIn(email: String, password: String) async throws {
 
         saveLocalDiary()
         saveUserLocally()
-        syncDataToServer()
     }
 
     // MARK: - Watchlist
@@ -327,7 +157,6 @@ func logIn(email: String, password: String) async throws {
         guard !user.watchlist.contains(where: { $0.id == film.id }) else { return }
         currentUser?.watchlist.append(film)
         saveUserLocally()
-        syncProfileToServer()
 
         let post = BuddyPost(
             userId: user.id,
@@ -343,7 +172,6 @@ func logIn(email: String, password: String) async throws {
     func removeFromWatchlist(_ film: Film) {
         currentUser?.watchlist.removeAll { $0.id == film.id }
         saveUserLocally()
-        syncProfileToServer()
     }
 
     func isInWatchlist(_ film: Film) -> Bool {
@@ -403,20 +231,17 @@ func logIn(email: String, password: String) async throws {
         let list = FilmList(name: name, description: description, isPublic: isPublic)
         filmLists.append(list)
         saveLocalLists()
-        syncDataToServer()
     }
 
     func updateList(_ list: FilmList) {
         guard let idx = filmLists.firstIndex(where: { $0.id == list.id }) else { return }
         filmLists[idx] = list
         saveLocalLists()
-        syncDataToServer()
     }
 
     func deleteList(_ list: FilmList) {
         filmLists.removeAll { $0.id == list.id }
         saveLocalLists()
-        syncDataToServer()
     }
 
     func addFilmToList(_ film: Film, listId: String) {
@@ -424,14 +249,12 @@ func logIn(email: String, password: String) async throws {
         guard !filmLists[idx].films.contains(where: { $0.id == film.id }) else { return }
         filmLists[idx].films.append(film)
         saveLocalLists()
-        syncDataToServer()
     }
 
     func removeFilmFromList(_ film: Film, listId: String) {
         guard let idx = filmLists.firstIndex(where: { $0.id == listId }) else { return }
         filmLists[idx].films.removeAll { $0.id == film.id }
         saveLocalLists()
-        syncDataToServer()
     }
 
     func shareableListText(for list: FilmList) -> String {
@@ -518,40 +341,6 @@ func logIn(email: String, password: String) async throws {
             minutes = Int(runtime) ?? 0
         }
         return minutes
-    }
-
-    private func syncProfileToServer() {
-        saveUserLocally()
-        guard let token = authToken, let user = currentUser else { return }
-        Task {
-            var updates: [String: Any] = [:]
-            updates["username"] = user.username
-            updates["profileImageName"] = user.profileImageName
-            updates["bio"] = user.bio
-            if let customURL = user.customProfileImageURL {
-                updates["customProfileImageURL"] = customURL
-            }
-            if let goldenId = user.goldenPopcornFilmId {
-                updates["goldenPopcornFilmId"] = goldenId
-            }
-            if let watchlistData = try? JSONSerialization.jsonObject(with: JSONEncoder().encode(user.watchlist)) {
-                updates["watchlist"] = watchlistData
-            }
-            if let topFiveData = try? JSONSerialization.jsonObject(with: JSONEncoder().encode(user.topFiveFilms)) {
-                updates["topFiveFilms"] = topFiveData
-            }
-            await remoteAuth.updateProfile(token: token, updates: updates)
-        }
-    }
-
-    private func syncDataToServer() {
-        saveLocalDiary()
-        saveLocalLists()
-        saveUserLocally()
-        guard let token = authToken else { return }
-        Task {
-            await remoteAuth.syncData(token: token, diaryEntries: diaryEntries, filmLists: filmLists)
-        }
     }
 
     private func saveUserLocally() {
