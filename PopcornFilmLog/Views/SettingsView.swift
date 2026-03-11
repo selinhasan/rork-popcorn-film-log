@@ -3,6 +3,7 @@ import PhotosUI
 
 struct SettingsView: View {
     @Environment(AppViewModel.self) private var viewModel
+    @Environment(AuthViewModel.self) private var authViewModel
     @Environment(\.dismiss) private var dismiss
     @State private var showEditProfile = false
     @State private var showImportSheet = false
@@ -62,8 +63,29 @@ struct SettingsView: View {
                 } label: {
                     settingsRow(icon: "doc.badge.arrow.up", title: "Import from Spreadsheet", showChevron: true)
                 }
+            }
+            .clipShape(.rect(cornerRadius: 14))
+            .padding(.horizontal)
 
+            Spacer().frame(height: 24)
 
+            Button {
+                authViewModel.logout()
+                dismiss()
+            } label: {
+                HStack(spacing: 12) {
+                    Image(systemName: "rectangle.portrait.and.arrow.right")
+                        .font(.body)
+                        .foregroundStyle(PopcornTheme.warmRed)
+                        .frame(width: 28)
+                    Text("Sign Out")
+                        .font(.body)
+                        .foregroundStyle(PopcornTheme.warmRed)
+                    Spacer()
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 14)
+                .background(Color.white)
             }
             .clipShape(.rect(cornerRadius: 14))
             .padding(.horizontal)

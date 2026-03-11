@@ -23,20 +23,16 @@ class AppViewModel {
         if let data = UserDefaults.standard.data(forKey: "currentUser"),
            let user = try? JSONDecoder().decode(UserProfile.self, from: data) {
             currentUser = user
-        } else {
-            let defaultUser = UserProfile(
-                username: "Film Fan",
-                email: "local@popcorn.app",
-                profileImageName: "avatar_1",
-                bio: ""
-            )
-            currentUser = defaultUser
-            saveUserLocally()
         }
         loadLocalDiary()
         loadLocalLists()
         loadBuddies()
         Task { await loadTMDbData() }
+    }
+
+    func setUser(_ user: UserProfile) {
+        currentUser = user
+        saveUserLocally()
     }
 
     func loadTMDbData() async {
