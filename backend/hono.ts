@@ -2,7 +2,6 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { createClient } from "@supabase/supabase-js";
 import { jwtVerify, SignJWT } from "jose";
-import { v4 as uuidv4 } from "uuid";
 
 const app = new Hono();
 
@@ -115,7 +114,7 @@ async function authenticateRequest(authHeader: string | undefined): Promise<stri
   }
 }
 
-app.get("/", (c) => c.json({ status: "ok", message: "Popcorn Film Log API" }));
+app.get("/", (c) => c.json({ status: "ok", message: "Popcorn Film Log API v1" }));
 
 app.post("/login", async (c) => {
   const body = await c.req.json();
@@ -225,7 +224,7 @@ app.post("/register", async (c) => {
   if (existingUsername) return c.json({ error: "USERNAME_EXISTS", message: "This username is already taken." }, 409);
 
   const passwordHash = await hashPassword(password);
-  const userId = uuidv4();
+  const userId = crypto.randomUUID();
   const now = new Date().toISOString();
 
   const { data: newUser, error } = await supabase
