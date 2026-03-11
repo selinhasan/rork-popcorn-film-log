@@ -103,22 +103,70 @@ class AppViewModel {
 
     // MARK: - Auth
 
-    func signUp(username: String, email: String, password: String) async throws {
-        authError = nil
-        let response = try await remoteAuth.register(username: username, email: email, password: password)
-        KeychainService.save(key: tokenKey, value: response.token)
+    import CryptoKit
 
-        let user = UserProfile(
-            id: response.user.id,
-            username: response.user.username,
-            email: response.user.email,
-            joinDate: ISO8601DateFormatter().date(from: response.user.joinDate ?? "") ?? Date()
-        )
-        currentUser = user
-        isLoggedIn = true
-        saveUserLocally()
-        loadBuddies()
+func signUp(username: String, email: String, password: String) async throws {
+    authError = nil
+    
+    // 1️⃣ Generate UUID for the new user
+    let userId = UUID().uuidString
+    
+    // 2️⃣ Lowercase username
+    let usernameLower = username.lowercased()
+    
+    // 3️⃣ Hash password using SHA256
+    let passwordHash = SHA256.hash(data: Data(password.utf8)).compactMap { String(format: "%02x", $0) }.joined()
+    
+    // 4️⃣ Create POST body
+    let body: [String: Any] = [
+        "id": userId,
+        "username": username,
+        "username_lower": usernameLower,
+        "email": email,
+        "password_hash": passwordHash
+    ]
+    
+    let jsonData = try JSONSerialization.data(withJSONObject: body)
+    
+    // 5️⃣ Supabase URL for public.users
+    let url = URL(string: "https://<YOUR_SUPABASE_PROJECT_REF>.supabase.co/rest/v1/users")!
+    
+    var request = URLRequest(url: url)
+    request.httpMethod = "POST"
+    request.httpBody = jsonData
+    request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+    request.setValue("Bearer <YOUR_SUPABASE_ANON_KEY>", forHTTPHeaderField: "Authorization")
+    request.setValue("<YOUR_SUPABASE_ANON_KEY>", forHTTPHeaderField: "apikey")
+    
+    // 6️⃣ Send POST request
+    let (data, response) = try await URLSession.shared.data(for: request)
+    
+    guard let httpResponse = response as? HTTPURLResponse,
+          (200...299).contains(httpResponse.statusCode) else {
+        let message = String(data: data, encoding: .utf8) ?? "Unknown error"
+        throw NSError(domain: "SupabaseError", code: 1, userInfo: [NSLocalizedDescriptionKey: message])
     }
+    
+    // 7️⃣ Update currentUser locally
+    let newUser = UserProfile(
+        id: userId,
+        username: username,
+        email: email,
+        profileImageName: "avatar_1",
+        customProfileImageURL: nil,
+        bio: "",
+        topFiveFilms: [],
+        goldenPopcornFilmId: nil,
+        buddyIds: [],
+        watchlist: [],
+        joinDate: Date()
+    )
+    
+    currentUser = newUser
+    isLoggedIn = true
+    saveUserLocally()
+    loadBuddies()
+}
 
     func logIn(email: String, password: String) async throws {
         authError = nil
