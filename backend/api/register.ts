@@ -1,15 +1,10 @@
 console.log("SUPABASE_URL:", process.env.SUPABASE_URL);
 console.log("SUPABASE_SERVICE_ROLE_KEY:", process.env.SUPABASE_SERVICE_ROLE_KEY);
-
-
+//testing end
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { v4 as uuidv4 } from "uuid";
 import { supabase } from "../lib/supabase";
 import { handleCors, hashPassword, generateToken, sanitizeUser, type UserRow } from "../lib/auth";
-//testing
-import fs from "fs";
-console.log("Files in lib:", fs.readdirSync("../lib"));
-//testing end
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (handleCors(req, res)) return;
