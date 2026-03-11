@@ -129,13 +129,13 @@ func signUp(username: String, email: String, password: String) async throws {
     let jsonData = try JSONSerialization.data(withJSONObject: body)
     
     // 5️⃣ Supabase URL for public.users
-    let url = URL(string: "https://<YOUR_SUPABASE_PROJECT_REF>.supabase.co/rest/v1/users")!
+    let url = URL(string: "https://nmcgyfaixyxmkpmhuzlf.supabase.co/rest/v1/users")!
     
     var request = URLRequest(url: url)
     request.httpMethod = "POST"
     request.httpBody = jsonData
     request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-    request.setValue("Bearer <YOUR_SUPABASE_ANON_KEY>", forHTTPHeaderField: "Authorization")
+    request.setValue("Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5tY2d5ZmFpeHl4bWtwbWh1emxmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI5MTY4NjUsImV4cCI6MjA4ODQ5Mjg2NX0.Gc7TKjB1J4tSDrNfUXmND9YKBC4-aFvfCgit59DqMvY", forHTTPHeaderField: "Authorization")
     request.setValue("<YOUR_SUPABASE_ANON_KEY>", forHTTPHeaderField: "apikey")
     
     // 6️⃣ Send POST request
