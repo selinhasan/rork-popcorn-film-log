@@ -64,14 +64,6 @@ nonisolated struct DataResponse: Codable, Sendable {
     let watchlist: [Film]
 }
 
-private nonisolated struct TRPCWrapper<T: Codable & Sendable>: Codable, Sendable {
-    let result: TRPCResultData<T>
-}
-
-private nonisolated struct TRPCResultData<T: Codable & Sendable>: Codable, Sendable {
-    let data: T
-}
-
 nonisolated final class AuthClient: Sendable {
     static let shared = AuthClient()
 
@@ -91,25 +83,25 @@ nonisolated final class AuthClient: Sendable {
     private var baseURL: String {
         let url = Config.EXPO_PUBLIC_RORK_API_BASE_URL
         guard !url.isEmpty else { return "" }
-        return url + "/trpc"
+        return url
     }
 
     func register(username: String, email: String, password: String) async throws -> AuthResponse {
         let body: [String: Any] = ["username": username, "email": email, "password": password]
-        return try await mutation("auth.register", body: body)
+        return try await post("register", body: body)
     }
 
     func login(email: String, password: String) async throws -> AuthResponse {
         let body: [String: Any] = ["email": email, "password": password]
-        return try await mutation("auth.login", body: body)
+        return try await post("login", body: body)
     }
 
     func getProfile(token: String) async throws -> ProfileResponse {
-        return try await query("auth.getProfile", token: token)
+        return try await get("get-profile", token: token)
     }
 
     func updateProfile(token: String, updates: [String: Any]) async throws -> ProfileResponse {
-        return try await mutation("auth.updateProfile", body: updates, token: token)
+        return try await post("update-profile", body: updates, token: token)
     }
 
     func syncData(token: String, diaryEntries: [[String: Any]]?, filmLists: [[String: Any]]?, watchlist: [[String: Any]]?) async throws {
@@ -117,37 +109,35 @@ nonisolated final class AuthClient: Sendable {
         if let diaryEntries { body["diaryEntries"] = diaryEntries }
         if let filmLists { body["filmLists"] = filmLists }
         if let watchlist { body["watchlist"] = watchlist }
-        let _: SuccessResponse = try await mutation("auth.syncData", body: body, token: token)
+        let _: SuccessResponse = try await post("sync-data", body: body, token: token)
     }
 
     func getData(token: String) async throws -> DataResponse {
-        return try await query("auth.getData", token: token)
+        return try await get("get-data", token: token)
     }
 
     func changePassword(token: String, currentPassword: String, newPassword: String) async throws {
         let body: [String: Any] = ["currentPassword": currentPassword, "newPassword": newPassword]
-        let _: SuccessResponse = try await mutation("auth.changePassword", body: body, token: token)
+        let _: SuccessResponse = try await post("change-password", body: body, token: token)
     }
 
     func requestPasswordReset(email: String) async throws -> ResetResponse {
         let body: [String: Any] = ["email": email]
-        return try await mutation("auth.requestPasswordReset", body: body)
+        return try await post("request-password-reset", body: body)
     }
 
     func deleteAccount(token: String) async throws {
-        let _: SuccessResponse = try await mutation("auth.deleteAccount", body: [:], token: token)
+        let _: SuccessResponse = try await post("delete-account", body: [:], token: token)
     }
 
-    private func query<T: Codable & Sendable>(_ endpoint: String, body: [String: Any]? = nil, token: String? = nil) async throws -> T {
-        let data = try await request(endpoint: endpoint, method: "GET", body: body, token: token)
-        let wrapper = try decoder.decode(TRPCWrapper<T>.self, from: data)
-        return wrapper.result.data
+    private func get<T: Codable & Sendable>(_ endpoint: String, token: String? = nil) async throws -> T {
+        let data = try await request(endpoint: endpoint, method: "GET", body: nil, token: token)
+        return try decoder.decode(T.self, from: data)
     }
 
-    private func mutation<T: Codable & Sendable>(_ endpoint: String, body: [String: Any]? = nil, token: String? = nil) async throws -> T {
+    private func post<T: Codable & Sendable>(_ endpoint: String, body: [String: Any]? = nil, token: String? = nil) async throws -> T {
         let data = try await request(endpoint: endpoint, method: "POST", body: body, token: token)
-        let wrapper = try decoder.decode(TRPCWrapper<T>.self, from: data)
-        return wrapper.result.data
+        return try decoder.decode(T.self, from: data)
     }
 
     private func request(endpoint: String, method: String, body: [String: Any]?, token: String?) async throws -> Data {
@@ -155,15 +145,7 @@ nonisolated final class AuthClient: Sendable {
             throw AuthError.networkError("Server URL not configured")
         }
 
-        var urlString = "\(baseURL)/\(endpoint)"
-
-        if method == "GET", let body, !body.isEmpty {
-            let jsonData = try JSONSerialization.data(withJSONObject: body)
-            if let jsonString = String(data: jsonData, encoding: .utf8),
-               let encoded = jsonString.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) {
-                urlString += "?input=\(encoded)"
-            }
-        }
+        let urlString = "\(baseURL)/\(endpoint)"
 
         guard let url = URL(string: urlString) else {
             throw AuthError.networkError("Invalid URL")
@@ -199,19 +181,7 @@ nonisolated final class AuthClient: Sendable {
             return .serverError("Server error (\(statusCode))")
         }
 
-        var message = ""
-
-        if let error = json["error"] as? [String: Any] {
-            if let jsonMsg = error["json"] as? [String: Any], let msg = jsonMsg["message"] as? String {
-                message = msg
-            } else if let msg = error["message"] as? String {
-                message = msg
-            }
-        }
-
-        if message.isEmpty, let rawString = String(data: data, encoding: .utf8) {
-            message = rawString
-        }
+        let message = json["error"] as? String ?? json["message"] as? String ?? ""
 
         if message.contains("EMAIL_EXISTS") { return .emailExists }
         if message.contains("USERNAME_EXISTS") { return .usernameExists }
