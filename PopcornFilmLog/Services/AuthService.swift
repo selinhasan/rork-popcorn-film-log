@@ -86,11 +86,7 @@ class AuthService {
     static let shared = AuthService()
 
     private var baseURL: String {
-        let url = Config.EXPO_PUBLIC_RORK_API_BASE_URL
-        if url.isEmpty {
-            return "https://rork-popcorn-film-log.vercel.app"
-        }
-        return url
+        Config.EXPO_PUBLIC_RORK_API_BASE_URL
     }
 
     private let decoder = JSONDecoder()
