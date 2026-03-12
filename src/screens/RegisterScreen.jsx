@@ -5,14 +5,23 @@ import { useAuth } from '../context/AuthContext'
 
 export default function RegisterScreen({ navigation }) {
   const { signUp } = useAuth()
+  const [username, setUsername] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [loading, setLoading] = useState(false)
 
   const handleRegister = async () => {
-    if (!email || !password || !confirmPassword) {
+    if (!username || !email || !password || !confirmPassword) {
       Alert.alert('Error', 'Please fill in all fields')
+      return
+    }
+    if (username.trim().length < 3) {
+      Alert.alert('Error', 'Username must be at least 3 characters')
+      return
+    }
+    if (/\s/.test(username)) {
+      Alert.alert('Error', 'Username cannot contain spaces')
       return
     }
     if (password !== confirmPassword) {
@@ -26,7 +35,7 @@ export default function RegisterScreen({ navigation }) {
 
     setLoading(true)
     try {
-      const { session } = await signUp(email, password)
+      const { session } = await signUp(email.trim().toLowerCase(), password, username.trim())
 
       // Supabase sends a confirmation email by default.
       // If email confirmation is disabled in your project, session will be set immediately.
@@ -47,6 +56,15 @@ export default function RegisterScreen({ navigation }) {
       <Text style={styles.title}>Create account</Text>
       <Text style={styles.subtitle}>Sign up to get started</Text>
 
+      <TextInput
+        style={styles.input}
+        placeholder="Username"
+        placeholderTextColor="#999"
+        value={username}
+        onChangeText={setUsername}
+        autoCapitalize="none"
+        autoCorrect={false}
+      />
       <TextInput
         style={styles.input}
         placeholder="Email"

@@ -2,6 +2,7 @@
 node_modules/
 .expo/
 .bundle/
+dist/
 
 # Keep package.json, package-lock.json, tsconfig.json and app.json committed
 

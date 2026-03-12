@@ -16,10 +16,16 @@ export default function LoginScreen({ navigation }) {
 
     setLoading(true)
     try {
-      await signIn(email, password)
-      // Navigation is handled automatically by the auth state change in App.jsx
+      await signIn(email.trim().toLowerCase(), password)
     } catch (error) {
-      Alert.alert('Login failed', error.message)
+      const msg = error?.message ?? 'Unknown error'
+      if (msg.toLowerCase().includes('email not confirmed')) {
+        Alert.alert('Email not confirmed', 'Please check your inbox and confirm your email before signing in.')
+      } else if (msg.toLowerCase().includes('invalid login credentials')) {
+        Alert.alert('Login failed', 'Incorrect email or password.')
+      } else {
+        Alert.alert('Login failed', msg)
+      }
     } finally {
       setLoading(false)
     }

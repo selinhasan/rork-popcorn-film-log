@@ -1,8 +1,8 @@
 {
-  "functions": {
-    "api/**/*.ts": {
-      "runtime": "@vercel/node@5.3.14",
-      "includeFiles": "lib/**/*.ts"
-    }
-  }
+  "buildCommand": "npm run build:web",
+  "outputDirectory": "dist",
+  "framework": null,
+  "rewrites": [
+    { "source": "/(.*)", "destination": "/index.html" }
+  ]
 }
