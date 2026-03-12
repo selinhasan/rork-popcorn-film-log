@@ -4,7 +4,7 @@ A film diary and social logging app built with React Native (Expo). Log films yo
 
 ---
 
-## Tech Stack
+## Tech Stack ye
 
 - **React Native** (Expo SDK 52) — iOS, Android, and Web
 - **Supabase** — Auth + Postgres database
