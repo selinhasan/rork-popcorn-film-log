@@ -7,7 +7,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useApp } from '../context/AppContext'
 import { useAuth } from '../context/AuthContext'
 import { Colors } from '../theme/colors'
-import AddBuddyScreen from './AddBuddyScreen'
 
 const TABS = ['All', 'Activity', 'Posts']
 
@@ -55,10 +54,6 @@ export default function BuddiesScreen() {
   const [posts, setPosts] = useState([])
   const [showNewPost, setShowNewPost] = useState(false)
   const [newPostText, setNewPostText] = useState('')
-  //test
-  const [showNewBuddy, setShowNewBuddy] = useState(false)
-  const [newBuddyText, setNewBuddyText] = useState('')
-  //
 
   // For now buddy logs = your own recent logs as a demo
   // In a real app you'd fetch from Supabase based on follower relationships
@@ -83,9 +78,6 @@ export default function BuddiesScreen() {
         <Text style={styles.navTitle}>Buddies</Text>
         <TouchableOpacity style={styles.navBtn} onPress={() => setShowNewPost(true)}>
           <Text style={styles.navBtnText}>✏️ Post</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.navBtn} onPress={() => setShowNewBuddy(true)}>
-          <Text style={styles.navBtnText}>👥Add Buddy</Text>
         </TouchableOpacity>
       </View>
 
@@ -176,15 +168,6 @@ export default function BuddiesScreen() {
           />
         </View>
       </Modal>
-      <Modal
-  visible={showNewBuddy}
-  animationType="slide"
-  presentationStyle="pageSheet"
-  onRequestClose={() => setShowNewBuddy(false)}
->
-  <AddBuddyScreen onClose={() => setShowNewBuddy(false)} />
-</Modal>
-      
     </View>
   )
 }
