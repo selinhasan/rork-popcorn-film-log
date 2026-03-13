@@ -7,6 +7,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useApp } from '../context/AppContext'
 import { useAuth } from '../context/AuthContext'
 import { Colors } from '../theme/colors'
+import AddBuddyScreen from './AddBuddyScreen'
 
 const TABS = ['All', 'Activity', 'Posts']
 
@@ -54,6 +55,7 @@ export default function BuddiesScreen() {
   const [posts, setPosts] = useState([])
   const [showNewPost, setShowNewPost] = useState(false)
   const [newPostText, setNewPostText] = useState('')
+  const [showAddBuddy, setShowAddBuddy] = useState(false)
 
   // For now buddy logs = your own recent logs as a demo
   // In a real app you'd fetch from Supabase based on follower relationships
@@ -76,9 +78,14 @@ export default function BuddiesScreen() {
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <View style={styles.navBar}>
         <Text style={styles.navTitle}>Buddies</Text>
-        <TouchableOpacity style={styles.navBtn} onPress={() => setShowNewPost(true)}>
-          <Text style={styles.navBtnText}>✏️ Post</Text>
-        </TouchableOpacity>
+        <View style={styles.navActions}>
+          <TouchableOpacity style={styles.navBtn} onPress={() => setShowAddBuddy(true)}>
+            <Text style={styles.navBtnText}>👥 Add Buddy</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.navBtn} onPress={() => setShowNewPost(true)}>
+            <Text style={styles.navBtnText}>✏️ Post</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* Tabs */}
@@ -168,6 +175,11 @@ export default function BuddiesScreen() {
           />
         </View>
       </Modal>
+
+      {/* Add Buddy Modal */}
+      <Modal visible={showAddBuddy} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setShowAddBuddy(false)}>
+        <AddBuddyScreen onClose={() => setShowAddBuddy(false)} />
+      </Modal>
     </View>
   )
 }
@@ -176,6 +188,7 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.cream },
   navBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingBottom: 8 },
   navTitle: { fontSize: 22, fontWeight: '700', color: Colors.darkBrown },
+  navActions: { flexDirection: 'row', gap: 8 },
   navBtn: { backgroundColor: Colors.cardBackground, borderRadius: 16, paddingHorizontal: 12, paddingVertical: 6 },
   navBtnText: { fontSize: 13, color: Colors.sepiaBrown, fontWeight: '500' },
   tabs: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: Colors.subtleGray + '33', marginBottom: 4 },
