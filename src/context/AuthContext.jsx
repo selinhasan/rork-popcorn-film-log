@@ -10,26 +10,14 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true)
 
   const fetchProfile = useCallback(async (userId) => {
-  if (!userId) { setProfile(null); return }
-
-  // Step 1: get username from private_user_info using the auth UUID
-  const { data: privateData } = await supabase
-    .from('private_user_info')
-    .select('username')
-    .eq('id', userId)
-    .single()
-
-  if (!privateData?.username) return
-
-  // Step 2: get public profile using username (the PK)
-  const { data } = await supabase
-    .from('public_user_info')
-    .select('username, profile_pic_url, created_date, top_five_films, golden_popcorn_film_id, watchlist, diary_entries, film_lists')
-    .eq('username', privateData.username)
-    .single()
-
-  if (data) setProfile(data)
-}, [])
+    if (!userId) { setProfile(null); return }
+    const { data } = await supabase
+      .from('users')
+      .select('id, username, email, bio, profile_image_name, custom_profile_image_url, top_five_films, watchlist')
+      .eq('id', userId)
+      .single()
+    if (data) setProfile(data)
+  }, [])
 
   useEffect(() => {
     // Listen for auth state changes — fires immediately with current session
@@ -53,16 +41,16 @@ export function AuthProvider({ children }) {
     const { data, error } = await supabase.auth.signUp({ email, password })
     if (error) throw error
 
-    // Insert the private profile row
+    // Insert the public profile row
     if (data.user) {
-      const { error: profileError } = await supabase.from('private_user_info').insert({
+      const { error: profileError } = await supabase.from('users').insert({
         id: data.user.id,
-        username: username.trim().toLowerCase(),
+        username: username.trim(),
+        username_lower: username.trim().toLowerCase(),
         email: email.trim().toLowerCase(),
         // password_hash is required (NOT NULL) — Supabase Auth manages the real credential
-        password_hash: 'supabase_auth_managed'
+        password_hash: 'supabase_auth_managed',
       })
-      // Insert the public profile row
       if (profileError) {
         // Surface duplicate-username errors clearly
         if (profileError.code === '23505') {
@@ -70,21 +58,7 @@ export function AuthProvider({ children }) {
         }
         throw new Error(profileError.message)
       }
-      //?
       setProfile({ id: data.user.id, username: username.trim(), email: email.trim().toLowerCase(), bio: '' })
-    }
-    // Insert the public profile row
-    if (data.user) {
-      const { error: profileError } = await supabase.from('public_user_info').insert({
-        username: username.trim().toLowerCase(),
-      })
-      if (profileError) {
-        // Surface duplicate-username errors clearly
-        if (profileError.code === '23505') {
-          throw new Error('unable to update public profile row.')
-        }
-        throw new Error(profileError.message)
-      }
     }
 
     return data
