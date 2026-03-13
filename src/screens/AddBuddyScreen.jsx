@@ -1,27 +1,24 @@
 import { useState, useRef } from 'react'
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
-  FlatList, Image, ScrollView, ActivityIndicator, Alert,
+  FlatList, Image, ActivityIndicator, Alert,
 } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useApp } from '../context/AppContext'
 import { useAuth } from '../context/AuthContext'
 import { Colors } from '../theme/colors'
+import { supabase } from '../lib/supabase'
 
-
-
-export default function LogFilmScreen({ route, navigation, onClose }) {
+export default function AddBuddyScreen({ route, navigation, onClose }) {
   const { user } = useAuth()
-  const { searchUsers, addBuddy } = useApp()
+  const { addBuddy } = useApp()
   const insets = useSafeAreaInsets()
 
-  // Prefer onClose prop (when rendered in a Modal); fall back to navigation.goBack()
   const handleClose = () => {
     if (onClose) onClose()
     else navigation?.goBack()
   }
 
-  // User search state
   const [searchText, setSearchText] = useState('')
   const [userResults, setUserResults] = useState([])
   const [isSearching, setIsSearching] = useState(false)
@@ -32,21 +29,39 @@ export default function LogFilmScreen({ route, navigation, onClose }) {
   const handleSearchChange = (text) => {
     setSearchText(text)
     clearTimeout(searchTimer.current)
-    if (!text.trim()) {
+
+    if (text.trim().length < 1) {
       setUserResults([])
       return
     }
+
     searchTimer.current = setTimeout(async () => {
       setIsSearching(true)
       try {
-        const users = await searchUsers(text)
-        setUserResults(users || [])
-      } catch {
+        const { data, error } = await supabase
+          .from('users')
+          .select('id, username, display_name, avatar_url')
+          .ilike('username', `%${text.trim()}%`)
+          .neq('id', user?.id)   // exclude yourself
+          .limit(20)
+
+        if (error) throw error
+
+        // Normalise field names to match the rest of the UI
+        const normalised = (data || []).map(u => ({
+          id: u.id,
+          username: u.username,
+          displayName: u.display_name,
+          avatarURL: u.avatar_url,
+        }))
+        setUserResults(normalised)
+      } catch (e) {
+        console.error('User search error:', e)
         setUserResults([])
       } finally {
         setIsSearching(false)
       }
-    }, 400)
+    }, 300)
   }
 
   const handleAddBuddy = async (buddy) => {
@@ -60,8 +75,6 @@ export default function LogFilmScreen({ route, navigation, onClose }) {
     }
   }
 
-
-  // ── User search view ─────────────────────────────────────────────────────────
   const renderUser = ({ item }) => (
     <View style={styles.userRow}>
       {item.avatarURL ? (
@@ -156,8 +169,6 @@ const styles = StyleSheet.create({
   },
   screenTitle: { fontSize: 20, fontWeight: '700', color: Colors.darkBrown },
   cancelText: { fontSize: 15, color: Colors.sepiaBrown },
-  backBtn: {},
-  backBtnText: { fontSize: 15, color: Colors.sepiaBrown },
   searchBar: {
     flexDirection: 'row', alignItems: 'center',
     backgroundColor: '#fff', borderRadius: 12,
@@ -168,7 +179,6 @@ const styles = StyleSheet.create({
   clearBtn: { fontSize: 14, color: Colors.subtleGray, paddingLeft: 8 },
   centered: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   emptyHint: { fontSize: 14, color: Colors.subtleGray },
-  // User row
   userRow: {
     flexDirection: 'row', alignItems: 'center',
     backgroundColor: '#fff', borderRadius: 12, padding: 10, gap: 12,
@@ -178,42 +188,10 @@ const styles = StyleSheet.create({
   avatarInitial: { fontSize: 20, fontWeight: '700', color: Colors.sepiaBrown },
   listTitle: { fontSize: 14, fontWeight: '600', color: Colors.darkBrown },
   listMeta: { fontSize: 12, color: Colors.subtleGray, marginTop: 2 },
-  // Add buddy button
   addBuddyBtn: {
     width: 34, height: 34, borderRadius: 17,
     borderWidth: 2, borderColor: Colors.warmRed,
     alignItems: 'center', justifyContent: 'center',
   },
   addBuddyBtnText: { fontSize: 22, lineHeight: 26, color: Colors.warmRed, fontWeight: '600' },
-  // Film detail view
-  filmRow: { flexDirection: 'row', gap: 14, marginBottom: 24 },
-  filmPoster: { width: 80, height: 115, borderRadius: 10 },
-  filmTitle: { fontSize: 18, fontWeight: '700', color: Colors.darkBrown },
-  filmMeta: { fontSize: 13, color: Colors.subtleGray, marginTop: 4 },
-  filmGenre: { fontSize: 12, color: Colors.sepiaBrown, marginTop: 4 },
-  formSection: { marginBottom: 20 },
-  formLabel: { fontSize: 14, fontWeight: '600', color: Colors.sepiaBrown, marginBottom: 8 },
-  dateInput: {
-    backgroundColor: '#fff', borderRadius: 10, padding: 12,
-    fontSize: 15, color: Colors.darkBrown,
-    borderWidth: 1, borderColor: Colors.subtleGray + '44',
-  },
-  reviewInput: {
-    backgroundColor: '#fff', borderRadius: 10, padding: 12,
-    fontSize: 15, color: Colors.darkBrown, minHeight: 100,
-    borderWidth: 1, borderColor: Colors.subtleGray + '44',
-  },
-  saveBtn: {
-    backgroundColor: Colors.warmRed, borderRadius: 12,
-    paddingVertical: 16, alignItems: 'center', marginTop: 8,
-  },
-  saveBtnText: { color: '#fff', fontSize: 16, fontWeight: '700' },
-})
-
-const ratingStyles = StyleSheet.create({
-  row: { flexDirection: 'row', alignItems: 'center' },
-  popcorn: { fontSize: 28, marginRight: 6 },
-  filled: { opacity: 1 },
-  empty: { opacity: 0.25 },
-  clear: { fontSize: 13, color: Colors.sepiaBrown, marginLeft: 4 },
 })
