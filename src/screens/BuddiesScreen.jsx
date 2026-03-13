@@ -176,14 +176,15 @@ export default function BuddiesScreen() {
           />
         </View>
       </Modal>
-      <Modal
-  visible={showNewBuddy}
-  animationType="slide"
-  presentationStyle="pageSheet"
-  onRequestClose={() => setShowNewBuddy(false)}
->
+
+
+      
+<Modal visible={showNewBuddy} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setShowNewBuddy(false)}>
   <AddBuddyScreen onClose={() => setShowNewBuddy(false)} />
 </Modal>
+
+
+      
       
     </View>
   )
