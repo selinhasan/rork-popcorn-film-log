@@ -42,7 +42,8 @@ export function AuthProvider({ children }) {
       email,
       password,
       options: {
-      data: { username: username.trim().toLowerCase() }
+        data: { username: username.trim().toLowerCase() }
+      }
   })
     if (error) throw error
 
