@@ -46,27 +46,6 @@ export function AuthProvider({ children }) {
       }
   })
     if (error) throw error
-
-    // Insert the public profile row
-    if (data.user) {
-      const { error: profileError } = await supabase.from('users').insert({
-        id: data.user.id,
-        username: username.trim(),
-        username_lower: username.trim().toLowerCase(),
-        email: email.trim().toLowerCase(),
-        // password_hash is required (NOT NULL) — Supabase Auth manages the real credential
-        password_hash: 'supabase_auth_managed',
-      })
-      if (profileError) {
-        // Surface duplicate-username errors clearly
-        if (profileError.code === '23505') {
-          throw new Error('That username is already taken. Please choose another.')
-        }
-        throw new Error(profileError.message)
-      }
-      setProfile({ id: data.user.id, username: username.trim(), email: email.trim().toLowerCase(), bio: '' })
-    }
-
     return data
   }
 
