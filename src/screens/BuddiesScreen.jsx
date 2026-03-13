@@ -181,7 +181,7 @@ export default function BuddiesScreen() {
         <View style={newPostStyles.container}>
           <View style={newPostStyles.header}>
             {/* Put here the search bar */}
-            <Text>search bar here ?</Text>
+            <Text style={newPostStyles.title}>Add Buddy</Text>
             <TouchableOpacity onPress={() => setShowNewBuddy(false)}>
               <Text style={newPostStyles.cancel}>Close</Text>
             </TouchableOpacity>
