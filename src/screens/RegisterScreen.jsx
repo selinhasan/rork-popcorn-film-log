@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native'
 import { useAuth } from '../context/AuthContext'
+import { supabase } from '../lib/supabase'
 
 export default function RegisterScreen({ navigation }) {
   const { signUp } = useAuth()
@@ -10,6 +11,28 @@ export default function RegisterScreen({ navigation }) {
   const [confirmPassword, setConfirmPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [usernameStatus, setUsernameStatus] = useState(null) // 'checking' | 'taken' | 'available' | null
+
+  useEffect(() => {
+    if (username.trim().length < 3 || /\s/.test(username)) {
+      setUsernameStatus(null)
+      return
+    }
+
+    setUsernameStatus('checking')
+
+    const timeout = setTimeout(async () => {
+      const { data } = await supabase
+        .from('public_user_info')
+        .select('username')
+        .eq('username', username.trim().toLowerCase())
+        .maybeSingle()
+
+      setUsernameStatus(data ? 'taken' : 'available')
+    }, 500) // 500ms debounce
+
+    return () => clearTimeout(timeout)
+  }, [username])
 
   const handleRegister = async () => {
     setError('')
@@ -24,6 +47,14 @@ export default function RegisterScreen({ navigation }) {
     }
     if (/\s/.test(username)) {
       setError('Username cannot contain spaces')
+      return
+    }
+    if (usernameStatus === 'taken') {
+      setError('That username is already taken')
+      return
+    }
+    if (usernameStatus === 'checking') {
+      setError('Please wait while we check your username')
       return
     }
     if (password !== confirmPassword) {
@@ -48,13 +79,22 @@ export default function RegisterScreen({ navigation }) {
     }
   }
 
+  const usernameHint = () => {
+    if (usernameStatus === 'checking') return { text: 'Checking...', color: '#999' }
+    if (usernameStatus === 'taken') return { text: 'Username already taken', color: '#e53e3e' }
+    if (usernameStatus === 'available') return { text: 'Username available', color: '#3ECF8E' }
+    return null
+  }
+
+  const hint = usernameHint()
+
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Create account</Text>
       <Text style={styles.subtitle}>Sign up to get started</Text>
 
       <TextInput
-        style={styles.input}
+        style={[styles.input, usernameStatus === 'taken' && styles.inputError, usernameStatus === 'available' && styles.inputSuccess]}
         placeholder="Username"
         placeholderTextColor="#999"
         value={username}
@@ -62,6 +102,8 @@ export default function RegisterScreen({ navigation }) {
         autoCapitalize="none"
         autoCorrect={false}
       />
+      {hint && <Text style={[styles.hint, { color: hint.color }]}>{hint.text}</Text>}
+
       <TextInput
         style={styles.input}
         placeholder="Email"
@@ -91,7 +133,7 @@ export default function RegisterScreen({ navigation }) {
 
       {error ? <Text style={styles.error}>{error}</Text> : null}
 
-      <TouchableOpacity style={styles.button} onPress={handleRegister} disabled={loading}>
+      <TouchableOpacity style={styles.button} onPress={handleRegister} disabled={loading || usernameStatus === 'taken'}>
         {loading
           ? <ActivityIndicator color="#fff" />
           : <Text style={styles.buttonText}>Create account</Text>
@@ -131,8 +173,19 @@ const styles = StyleSheet.create({
     paddingVertical: 13,
     fontSize: 15,
     color: '#111',
-    marginBottom: 14,
+    marginBottom: 4,
     backgroundColor: '#fafafa',
+  },
+  inputError: {
+    borderColor: '#e53e3e',
+  },
+  inputSuccess: {
+    borderColor: '#3ECF8E',
+  },
+  hint: {
+    fontSize: 12,
+    marginBottom: 10,
+    marginLeft: 4,
   },
   error: {
     color: '#e53e3e',
