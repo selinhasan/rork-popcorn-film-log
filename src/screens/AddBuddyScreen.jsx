@@ -40,7 +40,7 @@ export default function AddBuddyScreen({ route, navigation, onClose }) {
       try {
         const { data, error } = await supabase
           .from('users')
-          .select('id, username, profile_image_name')
+          .select('username, profile_image_name')
           .ilike('username_lower', `%${text.trim().toLowerCase()}%`)
           .neq('id', user?.id)   // exclude yourself
           .limit(20)
@@ -48,7 +48,6 @@ export default function AddBuddyScreen({ route, navigation, onClose }) {
         if (error) throw error
 
         const normalised = (data || []).map(u => ({
-          id: u.id,
           username: u.username,
           profileImageName: u.profile_image_name,
         }))
