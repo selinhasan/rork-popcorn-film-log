@@ -187,6 +187,7 @@ export default function BuddiesScreen() {
             </TouchableOpacity>
             
           </View>
+          {/* Put new buddy search function here */}
           <TextInput
             style={newPostStyles.input}
             placeholder="Add a buddy......."
@@ -196,6 +197,7 @@ export default function BuddiesScreen() {
             multiline
             autoFocus
           />
+          {/* Put new buddy search function here */}
         </View>
       </Modal>
       {/* New Buddy Modal End*/}
