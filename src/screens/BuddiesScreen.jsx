@@ -56,6 +56,7 @@ export default function BuddiesScreen() {
   const [newPostText, setNewPostText] = useState('')
   //test
   const [showNewBuddy, setShowNewBuddy] = useState(false)
+  const [newBuddyText, setNewBuddyText] = useState('')
   //
 
   // For now buddy logs = your own recent logs as a demo
@@ -83,11 +84,9 @@ export default function BuddiesScreen() {
         <TouchableOpacity style={styles.navBtn} onPress={() => setShowNewPost(true)}>
           <Text style={styles.navBtnText}>✏️ Post</Text>
         </TouchableOpacity>
-        //testing new button
         <TouchableOpacity style={styles.navBtn} onPress={() => setShowNewBuddy(true)}>
           <Text style={styles.navBtnText}>👥Add Buddy</Text>
         </TouchableOpacity>
-        //end of test
       </View>
 
       {/* Tabs */}
@@ -177,17 +176,15 @@ export default function BuddiesScreen() {
           />
         </View>
       </Modal>
-      //test new buddy modal//
-            <Modal visible={showNewBuddy} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setShowNewBuddy(false)}>
+      {/* New Buddy Modal */}
+      <Modal visible={showNewBuddy} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setShowNewBuddy(false)}>
         <View style={newPostStyles.container}>
           <View style={newPostStyles.header}>
             <TouchableOpacity onPress={() => setShowNewBuddy(false)}>
-              <Text style={newPostStyles.cancel}>Cancel</Text>
+              <Text style={newPostStyles.cancel}>Close</Text>
             </TouchableOpacity>
-            <Text style={newPostStyles.title}>New Buddy</Text>
-            <TouchableOpacity onPress={handlePost}>
-              <Text style={newPostStyles.post}>Post</Text>
-            </TouchableOpacity>
+            {/* Put here the search bar */}
+            <Text>search bar here ?</Text>
           </View>
           <TextInput
             style={newPostStyles.input}
@@ -200,7 +197,7 @@ export default function BuddiesScreen() {
           />
         </View>
       </Modal>
-      //end of test
+      {/* New Buddy Modal End*/}
       
     </View>
   )
