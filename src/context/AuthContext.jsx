@@ -38,7 +38,12 @@ export function AuthProvider({ children }) {
   }, [fetchProfile])
 
   const signUp = async (email, password, username) => {
-    const { data, error } = await supabase.auth.signUp({ email, password })
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+      data: { username: username.trim().toLowerCase() }
+  })
     if (error) throw error
 
     // Insert the public profile row
