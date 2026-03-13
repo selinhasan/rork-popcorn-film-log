@@ -39,15 +39,16 @@ export default function AddBuddyScreen({ route, navigation, onClose }) {
       setIsSearching(true)
       try {
         const { data, error } = await supabase
-          .from('users')
-          .select('username, profile_image_name')
-          .ilike('username_lower', `%${text.trim().toLowerCase()}%`)
+          .from('public_user_info')
+          .select('id, username, profile_image_name')
+          .ilike('username', `%${text.trim()}%`)
           .neq('id', user?.id)   // exclude yourself
           .limit(20)
 
         if (error) throw error
 
         const normalised = (data || []).map(u => ({
+          id: u.id,
           username: u.username,
           profileImageName: u.profile_image_name,
         }))
