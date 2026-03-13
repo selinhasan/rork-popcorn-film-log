@@ -12,6 +12,13 @@ export default function RegisterScreen({ navigation }) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [usernameStatus, setUsernameStatus] = useState(null) // 'checking' | 'taken' | 'available' | null
+  const isFormValid =
+    username.trim().length >= 3 &&
+    !/\s/.test(username) &&
+    usernameStatus === 'available' &&
+    email.trim().length > 0 &&
+    password.length >= 6 &&
+    password === confirmPassword
 
   useEffect(() => {
     if (username.trim().length < 3 || /\s/.test(username)) {
@@ -133,11 +140,15 @@ export default function RegisterScreen({ navigation }) {
 
       {error ? <Text style={styles.error}>{error}</Text> : null}
 
-      <TouchableOpacity style={styles.button} onPress={handleRegister} disabled={loading || usernameStatus === 'taken'}>
+      <TouchableOpacity
+        style={[styles.button, !isFormValid && styles.buttonDisabled]}
+        onPress={handleRegister}
+        disabled={loading || !isFormValid}
+        >
         {loading
-          ? <ActivityIndicator color="#fff" />
-          : <Text style={styles.buttonText}>Create account</Text>
-        }
+        ? <ActivityIndicator color="#fff" />
+        : <Text style={styles.buttonText}>Create account</Text>
+        }    
       </TouchableOpacity>
 
       <TouchableOpacity onPress={() => navigation.navigate('Login')}>
@@ -214,5 +225,8 @@ const styles = StyleSheet.create({
   linkBold: {
     color: '#3ECF8E',
     fontWeight: '600',
+  },
+  buttonDisabled: {
+  backgroundColor: '#c0c0c0',
   },
 })
