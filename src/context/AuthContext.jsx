@@ -10,14 +10,14 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true)
 
   const fetchProfile = useCallback(async (userId) => {
-    if (!userId) { setProfile(null); return }
-    const { data } = await supabase
-      .from('users')
-      .select('id, username, email, bio, profile_image_name, custom_profile_image_url, top_five_films, watchlist')
-      .eq('id', userId)
-      .single()
-    if (data) setProfile(data)
-  }, [])
+  if (!userId) { setProfile(null); return }
+  const { data } = await supabase
+    .from('public_user_info')
+    .select('user_id, username, bio, profile_pic_url, top_five_films, watchlist, diary_entries, film_lists, "Display name"')
+    .eq('user_id', userId)
+    .single()
+  if (data) setProfile(data)
+}, [])
 
   useEffect(() => {
     // Listen for auth state changes — fires immediately with current session
