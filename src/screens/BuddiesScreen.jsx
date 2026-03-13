@@ -54,6 +54,9 @@ export default function BuddiesScreen() {
   const [posts, setPosts] = useState([])
   const [showNewPost, setShowNewPost] = useState(false)
   const [newPostText, setNewPostText] = useState('')
+  //test
+  const [showNewBuddy, setShowNewBuddy] = useState(false)
+  //
 
   // For now buddy logs = your own recent logs as a demo
   // In a real app you'd fetch from Supabase based on follower relationships
@@ -70,6 +73,7 @@ export default function BuddiesScreen() {
     setPosts(prev => [post, ...prev])
     setNewPostText('')
     setShowNewPost(false)
+    setShowNewBuddy(false)
   }
 
   return (
@@ -79,6 +83,11 @@ export default function BuddiesScreen() {
         <TouchableOpacity style={styles.navBtn} onPress={() => setShowNewPost(true)}>
           <Text style={styles.navBtnText}>✏️ Post</Text>
         </TouchableOpacity>
+        //testing new button
+        <TouchableOpacity style={styles.navBtn} onPress={() => setShowNewBuddy(true)}>
+          <Text style={styles.navBtnText}>👥Add Buddy</Text>
+        </TouchableOpacity>
+        //end of test
       </View>
 
       {/* Tabs */}
@@ -168,6 +177,31 @@ export default function BuddiesScreen() {
           />
         </View>
       </Modal>
+      //test new buddy modal//
+            <Modal visible={showNewBuddy} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setShowNewBuddy(false)}>
+        <View style={newPostStyles.container}>
+          <View style={newPostStyles.header}>
+            <TouchableOpacity onPress={() => setShowNewBuddy(false)}>
+              <Text style={newPostStyles.cancel}>Cancel</Text>
+            </TouchableOpacity>
+            <Text style={newPostStyles.title}>New Buddy</Text>
+            <TouchableOpacity onPress={handlePost}>
+              <Text style={newPostStyles.post}>Post</Text>
+            </TouchableOpacity>
+          </View>
+          <TextInput
+            style={newPostStyles.input}
+            placeholder="Add a buddy......."
+            placeholderTextColor={Colors.subtleGray}
+            value={newPostText}
+            onChangeText={setNewPostText}
+            multiline
+            autoFocus
+          />
+        </View>
+      </Modal>
+      //end of test
+      
     </View>
   )
 }
