@@ -66,7 +66,6 @@ export function AuthProvider({ children }) {
       const { error: profileError } = await supabase.from('public_user_info').insert({
         username: username.trim().toLowerCase(),
       })
-      // Insert the public profile row
       if (profileError) {
         // Surface duplicate-username errors clearly
         if (profileError.code === '23505') {
@@ -74,8 +73,6 @@ export function AuthProvider({ children }) {
         }
         throw new Error(profileError.message)
       }
-      //?
-      setProfile({ id: data.user.id, username: username.trim(), email: email.trim().toLowerCase(), bio: '' })
     }
 
     return data
