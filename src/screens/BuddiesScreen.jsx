@@ -45,6 +45,28 @@ function BuddyLogCard({ entry }) {
     </View>
   )
 }
+//test1//
+function UserSearchResult({ result, onAdd, isAdded, isLoading }) {
+  return (
+    <View style={searchStyles.userRow}>
+      <View style={searchStyles.avatar}>
+        <Text style={{ fontSize: 18 }}>👤</Text>
+      </View>
+      <Text style={searchStyles.username}>{result.username}</Text>
+      <TouchableOpacity
+        style={[searchStyles.addBtn, isAdded && searchStyles.addBtnAdded]}
+        onPress={() => !isAdded && onAdd(result)}
+        disabled={isAdded || isLoading}
+      >
+        {isLoading
+          ? <ActivityIndicator size="small" color="#fff" />
+          : <Text style={searchStyles.addBtnText}>{isAdded ? '✓' : '+'}</Text>
+        }
+      </TouchableOpacity>
+    </View>
+  )
+}
+//end of test 1//
 
 export default function BuddiesScreen() {
   const { diaryEntries } = useApp()
@@ -55,8 +77,15 @@ export default function BuddiesScreen() {
   const [showNewPost, setShowNewPost] = useState(false)
   const [newPostText, setNewPostText] = useState('')
 
-  // For now buddy logs = your own recent logs as a demo
-  // In a real app you'd fetch from Supabase based on follower relationships
+  // test2
+    // Add Buddy modal state
+  const [showAddBuddy, setShowAddBuddy] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [searchResults, setSearchResults] = useState([])
+  const [searching, setSearching] = useState(false)
+  const [addedIds, setAddedIds] = useState(new Set())
+  const [addingId, setAddingId] = useState(null)
+  // end of test2
   const buddyLogs = diaryEntries.slice(0, 20)
 
   const handlePost = () => {
@@ -71,7 +100,84 @@ export default function BuddiesScreen() {
     setNewPostText('')
     setShowNewPost(false)
   }
+//test3
+  const handlePost = () => {
+    if (!newPostText.trim()) return
+    const post = {
+      id: Date.now().toString(),
+      text: newPostText.trim(),
+      username: profile?.username || user?.email?.split('@')[0] || 'You',
+      createdAt: new Date().toISOString(),
+    }
+    setPosts(prev => [post, ...prev])
+    setNewPostText('')
+    setShowNewPost(false)
+  }
+ 
+  const handleSearch = useCallback(async (query) => {
+    setSearchQuery(query)
+    if (query.trim().length < 2) {
+      setSearchResults([])
+      return
+    }
+    setSearching(true)
+    try {
+      const { data, error } = await supabase
+        .from('users')
+        .select('id, username')
+        .ilike('username', `%${query.trim()}%`)
+        .neq('id', user.id)   // exclude yourself
+        .limit(20)
+ 
+      if (error) throw error
+      setSearchResults(data || [])
+    } catch (err) {
+      Alert.alert('Search failed', err.message)
+    } finally {
+      setSearching(false)
+    }
+  }, [user?.id])
+ 
+const handleAddBuddy = async (result) => {
+  setAddingId(result.id)
+  try {
+    // Fetch current buddy_ids first
+    const { data: userData, error: fetchError } = await supabase
+      .from('users')
+      .select('buddy_ids')
+      .eq('id', user.id)
+      .single()
 
+    if (fetchError) throw fetchError
+
+    const current = userData.buddy_ids || []
+
+    // Avoid duplicates
+    if (current.includes(result.id)) {
+      setAddedIds(prev => new Set([...prev, result.id]))
+      return
+    }
+
+    const { error } = await supabase
+      .from('users')
+      .update({ buddy_ids: [...current, result.id] })
+      .eq('id', user.id)
+
+    if (error) throw error
+    setAddedIds(prev => new Set([...prev, result.id]))
+  } catch (err) {
+    Alert.alert('Could not add buddy', err.message)
+  } finally {
+    setAddingId(null)
+  }
+}
+ 
+  const handleCloseAddBuddy = () => {
+    setShowAddBuddy(false)
+    setSearchQuery('')
+    setSearchResults([])
+  }
+  //end of test3
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <View style={styles.navBar}>
