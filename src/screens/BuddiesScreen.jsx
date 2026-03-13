@@ -180,11 +180,12 @@ export default function BuddiesScreen() {
       <Modal visible={showNewBuddy} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setShowNewBuddy(false)}>
         <View style={newPostStyles.container}>
           <View style={newPostStyles.header}>
+            {/* Put here the search bar */}
+            <Text>search bar here ?</Text>
             <TouchableOpacity onPress={() => setShowNewBuddy(false)}>
               <Text style={newPostStyles.cancel}>Close</Text>
             </TouchableOpacity>
-            {/* Put here the search bar */}
-            <Text>search bar here ?</Text>
+            
           </View>
           <TextInput
             style={newPostStyles.input}
