@@ -1,6 +1,5 @@
-
 import { useState } from 'react'
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, Alert } from 'react-native'
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native'
 import { useAuth } from '../context/AuthContext'
 
 export default function RegisterScreen({ navigation }) {
@@ -10,42 +9,40 @@ export default function RegisterScreen({ navigation }) {
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
 
   const handleRegister = async () => {
+    setError('')
+
     if (!username || !email || !password || !confirmPassword) {
-      Alert.alert('Error', 'Please fill in all fields')
+      setError('Please fill in all fields')
       return
     }
     if (username.trim().length < 3) {
-      Alert.alert('Error', 'Username must be at least 3 characters')
+      setError('Username must be at least 3 characters')
       return
     }
     if (/\s/.test(username)) {
-      Alert.alert('Error', 'Username cannot contain spaces')
+      setError('Username cannot contain spaces')
       return
     }
     if (password !== confirmPassword) {
-      Alert.alert('Error', 'Passwords do not match')
+      setError('Passwords do not match')
       return
     }
     if (password.length < 6) {
-      Alert.alert('Error', 'Password must be at least 6 characters')
+      setError('Password must be at least 6 characters')
       return
     }
 
     setLoading(true)
     try {
       const { session } = await signUp(email.trim().toLowerCase(), password, username.trim().toLowerCase())
-
-      // Supabase sends a confirmation email by default.
-      // If email confirmation is disabled in your project, session will be set immediately.
       if (!session) {
-        Alert.alert('Check your email', 'We sent you a confirmation link.')
         navigation.navigate('Login')
       }
-      // If session exists, AuthContext state change handles navigation automatically
-    } catch (error) {
-      Alert.alert('Registration failed', error.message)
+    } catch (err) {
+      setError(err.message || 'Something went wrong. Please try again.')
     } finally {
       setLoading(false)
     }
@@ -61,7 +58,7 @@ export default function RegisterScreen({ navigation }) {
         placeholder="Username"
         placeholderTextColor="#999"
         value={username}
-        onChangeText={setUsername}
+        onChangeText={(t) => { setError(''); setUsername(t) }}
         autoCapitalize="none"
         autoCorrect={false}
       />
@@ -70,7 +67,7 @@ export default function RegisterScreen({ navigation }) {
         placeholder="Email"
         placeholderTextColor="#999"
         value={email}
-        onChangeText={setEmail}
+        onChangeText={(t) => { setError(''); setEmail(t) }}
         autoCapitalize="none"
         keyboardType="email-address"
         autoComplete="email"
@@ -80,7 +77,7 @@ export default function RegisterScreen({ navigation }) {
         placeholder="Password"
         placeholderTextColor="#999"
         value={password}
-        onChangeText={setPassword}
+        onChangeText={(t) => { setError(''); setPassword(t) }}
         secureTextEntry
       />
       <TextInput
@@ -88,9 +85,11 @@ export default function RegisterScreen({ navigation }) {
         placeholder="Confirm password"
         placeholderTextColor="#999"
         value={confirmPassword}
-        onChangeText={setConfirmPassword}
+        onChangeText={(t) => { setError(''); setConfirmPassword(t) }}
         secureTextEntry
       />
+
+      {error ? <Text style={styles.error}>{error}</Text> : null}
 
       <TouchableOpacity style={styles.button} onPress={handleRegister} disabled={loading}>
         {loading
@@ -134,6 +133,12 @@ const styles = StyleSheet.create({
     color: '#111',
     marginBottom: 14,
     backgroundColor: '#fafafa',
+  },
+  error: {
+    color: '#e53e3e',
+    fontSize: 13,
+    marginBottom: 12,
+    textAlign: 'center',
   },
   button: {
     backgroundColor: '#3ECF8E',
