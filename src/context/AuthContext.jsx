@@ -10,14 +10,26 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true)
 
   const fetchProfile = useCallback(async (userId) => {
-    if (!userId) { setProfile(null); return }
-    const { data } = await supabase
-      .from('public_user_info')
-      .select('username, profile_pic_url, created_date, top_five_films, golden_popcorn_film_id, watchlist, diary_entries, film_lists')
-      .eq('user', username)
-      .single()
-    if (data) setProfile(data)
-  }, [])
+  if (!userId) { setProfile(null); return }
+
+  // Step 1: get username from private_user_info using the auth UUID
+  const { data: privateData } = await supabase
+    .from('private_user_info')
+    .select('username')
+    .eq('id', userId)
+    .single()
+
+  if (!privateData?.username) return
+
+  // Step 2: get public profile using username (the PK)
+  const { data } = await supabase
+    .from('public_user_info')
+    .select('username, profile_pic_url, created_date, top_five_films, golden_popcorn_film_id, watchlist, diary_entries, film_lists')
+    .eq('username', privateData.username)
+    .single()
+
+  if (data) setProfile(data)
+}, [])
 
   useEffect(() => {
     // Listen for auth state changes — fires immediately with current session
