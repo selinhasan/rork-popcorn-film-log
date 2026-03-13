@@ -39,24 +39,31 @@ export default function AddBuddyScreen({ route, navigation, onClose }) {
     searchTimer.current = setTimeout(async () => {
       setIsSearching(true)
       try {
-        const { data, error } = await supabase
-          .from('public_user_info')
-          .select('user_id, username, profile_pic_url, "Display name"')
-          .ilike('username', `%${text.trim()}%`)
-          .neq('user_id', user?.id)
-          .limit(20)
+        let query = supabase
+        .from('public_user_info')
+        .select('user_id, username, profile_pic_url, "Display name"')
+        .ilike('username', `%${text.trim()}%`)
+        .limit(20)
+
+        if (user?.id) {
+          query = query.neq('user_id', user.id)
+        }    
+
+        const { data, error } = await query
+
+        console.log('search result:', JSON.stringify({ data, error }))
 
         if (error) throw error
 
         setUserResults(data || [])
-      } catch (e) {
+        } catch (e) {
         console.error('User search error:', e)
         setUserResults([])
-      } finally {
+        } finally {
         setIsSearching(false)
-      }
-    }, 150) // short debounce so it feels instant
-  }
+        }
+      }, 150)
+    }
 
   const handleAddBuddy = async (buddy) => {
     setAddingBuddyId(buddy.user_id)
