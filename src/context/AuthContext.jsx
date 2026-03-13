@@ -12,9 +12,9 @@ export function AuthProvider({ children }) {
   const fetchProfile = useCallback(async (userId) => {
     if (!userId) { setProfile(null); return }
     const { data } = await supabase
-      .from('users')
-      .select('id, username, email, bio, profile_image_name, custom_profile_image_url, top_five_films, watchlist')
-      .eq('id', userId)
+      .from('public_user_info')
+      .select('username, profile_pic_url, created_date, top_five_films, golden_popcorn_film_id, watchlist, diary_entries, film_lists')
+      .eq('user', username)
       .single()
     if (data) setProfile(data)
   }, [])
@@ -41,15 +41,18 @@ export function AuthProvider({ children }) {
     const { data, error } = await supabase.auth.signUp({ email, password })
     if (error) throw error
 
-    // Insert the public profile row
+    // Insert the private profile row
     if (data.user) {
-      const { error: profileError } = await supabase.from('users').insert({
+      const { error: profileError } = await supabase.from('private_user_info').insert({
         id: data.user.id,
-        username: username.trim(),
-        username_lower: username.trim().toLowerCase(),
+        username: username.trim().toLowerCase(),
         email: email.trim().toLowerCase(),
         // password_hash is required (NOT NULL) — Supabase Auth manages the real credential
-        password_hash: 'supabase_auth_managed',
+        password_hash: 'supabase_auth_managed'
+      })
+      // Insert the public profile row
+      const { error: profileError } = await supabase.from('public_user_info').insert({
+        username: username.trim().toLowerCase()
       })
       if (profileError) {
         // Surface duplicate-username errors clearly
@@ -58,6 +61,7 @@ export function AuthProvider({ children }) {
         }
         throw new Error(profileError.message)
       }
+      //?
       setProfile({ id: data.user.id, username: username.trim(), email: email.trim().toLowerCase(), bio: '' })
     }
 
