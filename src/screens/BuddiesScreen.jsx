@@ -7,6 +7,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useApp } from '../context/AppContext'
 import { useAuth } from '../context/AuthContext'
 import { Colors } from '../theme/colors'
+import AddBuddyScreen from './AddBuddyScreen'
 
 const TABS = ['All', 'Activity', 'Posts']
 
@@ -175,31 +176,14 @@ export default function BuddiesScreen() {
           />
         </View>
       </Modal>
-      {/* New Buddy Modal */}
-      <Modal visible={showNewBuddy} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setShowNewBuddy(false)}>
-        <View style={newPostStyles.container}>
-          <View style={newPostStyles.header}>
-            {/* Put here the search bar */}
-            <Text style={newPostStyles.title}>Add Buddy</Text>
-            <TouchableOpacity onPress={() => setShowNewBuddy(false)}>
-              <Text style={newPostStyles.cancel}>Close</Text>
-            </TouchableOpacity>
-            
-          </View>
-          {/* Put new buddy search function here */}
-          <TextInput
-            style={newPostStyles.input}
-            placeholder="Add a buddy......."
-            placeholderTextColor={Colors.subtleGray}
-            value={newPostText}
-            onChangeText={setNewPostText}
-            multiline
-            autoFocus
-          />
-          {/* Put new buddy search function here */}
-        </View>
-      </Modal>
-      {/* New Buddy Modal End*/}
+      <Modal
+  visible={showNewBuddy}
+  animationType="slide"
+  presentationStyle="pageSheet"
+  onRequestClose={() => setShowNewBuddy(false)}
+>
+  <AddBuddyScreen onClose={() => setShowNewBuddy(false)} />
+</Modal>
       
     </View>
   )
