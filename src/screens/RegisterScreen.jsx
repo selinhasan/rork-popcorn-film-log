@@ -21,25 +21,29 @@ export default function RegisterScreen({ navigation }) {
     password === confirmPassword
 
   useEffect(() => {
-    if (username.trim().length < 3 || /\s/.test(username)) {
+    if (username.length === 0) {
       setUsernameStatus(null)
       return
     }
+    if (username.trim().length < 3 || /\s/.test(username)) {
+      setUsernameStatus('invalid')
+      return
+    }
 
-    setUsernameStatus('checking')
+  setUsernameStatus('checking')
 
-    const timeout = setTimeout(async () => {
-      const { data } = await supabase
-        .from('public_user_info')
-        .select('username')
-        .eq('username', username.trim().toLowerCase())
-        .maybeSingle()
+  const timeout = setTimeout(async () => {
+    const { data } = await supabase
+      .from('public_user_info')
+      .select('username')
+      .eq('username', username.trim().toLowerCase())
+      .maybeSingle()
 
-      setUsernameStatus(data ? 'taken' : 'available')
-    }, 500) // 500ms debounce
+    setUsernameStatus(data ? 'taken' : 'available')
+  }, 500)
 
-    return () => clearTimeout(timeout)
-  }, [username])
+  return () => clearTimeout(timeout)
+}, [username])
 
   const handleRegister = async () => {
     setError('')
@@ -87,10 +91,14 @@ export default function RegisterScreen({ navigation }) {
   }
 
   const usernameHint = () => {
-    if (usernameStatus === 'checking') return { text: 'Checking...', color: '#999' }
-    if (usernameStatus === 'taken') return { text: 'Username already taken', color: '#e53e3e' }
-    if (usernameStatus === 'available') return { text: 'Username available', color: '#3ECF8E' }
-    return null
+  if (usernameStatus === 'invalid') {
+    if (/\s/.test(username)) return { text: 'Username cannot contain spaces', color: '#e53e3e' }
+    return { text: `username must be minimum 3 characters`, color: '#e53e3e' }
+  }
+  if (usernameStatus === 'checking') return { text: 'Checking...', color: '#999' }
+  if (usernameStatus === 'taken') return { text: 'Username already taken', color: '#e53e3e' }
+  if (usernameStatus === 'available') return { text: 'Username available ✓', color: '#3ECF8E' }
+  return null
   }
 
   const hint = usernameHint()
