@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react'
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
-  FlatList, ActivityIndicator, Alert,
+  FlatList, ActivityIndicator, Alert, Image,
 } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useApp } from '../context/AppContext'
@@ -35,35 +35,31 @@ export default function AddBuddyScreen({ route, navigation, onClose }) {
       return
     }
 
+    // Search immediately on every keystroke with a short debounce
     searchTimer.current = setTimeout(async () => {
       setIsSearching(true)
       try {
         const { data, error } = await supabase
           .from('public_user_info')
-          .select('id, username, profile_image_name')
+          .select('user_id, username, profile_pic_url, "Display name"')
           .ilike('username', `%${text.trim()}%`)
-          .neq('id', user?.id)   // exclude yourself
+          .neq('user_id', user?.id)
           .limit(20)
 
         if (error) throw error
 
-        const normalised = (data || []).map(u => ({
-          id: u.id,
-          username: u.username,
-          profileImageName: u.profile_image_name,
-        }))
-        setUserResults(normalised)
+        setUserResults(data || [])
       } catch (e) {
         console.error('User search error:', e)
         setUserResults([])
       } finally {
         setIsSearching(false)
       }
-    }, 300)
+    }, 150) // short debounce so it feels instant
   }
 
   const handleAddBuddy = async (buddy) => {
-    setAddingBuddyId(buddy.id)
+    setAddingBuddyId(buddy.user_id)
     try {
       await addBuddy(buddy)
     } catch (e) {
@@ -75,23 +71,28 @@ export default function AddBuddyScreen({ route, navigation, onClose }) {
 
   const renderUser = ({ item }) => (
     <View style={styles.userRow}>
-      <View style={[styles.avatarCircle, styles.avatarPlaceholder]}>
-        <Text style={styles.avatarInitial}>
-          {(item.username || '?')[0].toUpperCase()}
-        </Text>
-      </View>
+      {item.profile_pic_url ? (
+        <Image source={{ uri: item.profile_pic_url }} style={styles.avatarCircle} />
+      ) : (
+        <View style={[styles.avatarCircle, styles.avatarPlaceholder]}>
+          <Text style={styles.avatarEmoji}>👤</Text>
+        </View>
+      )}
+
       <View style={{ flex: 1 }}>
-        <Text style={styles.listTitle} numberOfLines={1}>
-          @{item.username}
-        </Text>
+        {item['Display name'] ? (
+          <Text style={styles.displayName} numberOfLines={1}>{item['Display name']}</Text>
+        ) : null}
+        <Text style={styles.username} numberOfLines={1}>@{item.username}</Text>
       </View>
+
       <TouchableOpacity
-        style={[styles.addBuddyBtn, addingBuddyId === item.id && { opacity: 0.5 }]}
+        style={[styles.addBuddyBtn, addingBuddyId === item.user_id && { opacity: 0.5 }]}
         onPress={() => handleAddBuddy(item)}
-        disabled={addingBuddyId === item.id}
+        disabled={addingBuddyId === item.user_id}
         activeOpacity={0.75}
       >
-        {addingBuddyId === item.id ? (
+        {addingBuddyId === item.user_id ? (
           <ActivityIndicator size="small" color={Colors.warmRed} />
         ) : (
           <Text style={styles.addBuddyBtnText}>+</Text>
@@ -142,7 +143,7 @@ export default function AddBuddyScreen({ route, navigation, onClose }) {
       ) : (
         <FlatList
           data={userResults}
-          keyExtractor={item => `user-${item.id}`}
+          keyExtractor={item => `user-${item.user_id}`}
           keyboardShouldPersistTaps="handled"
           contentContainerStyle={{ padding: 16, gap: 10 }}
           renderItem={renderUser}
@@ -176,9 +177,9 @@ const styles = StyleSheet.create({
   },
   avatarCircle: { width: 50, height: 50, borderRadius: 25, overflow: 'hidden' },
   avatarPlaceholder: { backgroundColor: Colors.cardBackground, alignItems: 'center', justifyContent: 'center' },
-  avatarInitial: { fontSize: 20, fontWeight: '700', color: Colors.sepiaBrown },
-  listTitle: { fontSize: 14, fontWeight: '600', color: Colors.darkBrown },
-  listMeta: { fontSize: 12, color: Colors.subtleGray, marginTop: 2 },
+  avatarEmoji: { fontSize: 24 },
+  displayName: { fontSize: 14, fontWeight: '700', color: Colors.darkBrown },
+  username: { fontSize: 13, color: Colors.subtleGray },
   addBuddyBtn: {
     width: 34, height: 34, borderRadius: 17,
     borderWidth: 2, borderColor: Colors.warmRed,
