@@ -25,13 +25,19 @@ function StarRating({ rating, onChange }) {
   )
 }
 
-export default function LogFilmScreen({ route, navigation }) {
+export default function LogFilmScreen({ route, navigation, onClose }) {
   const { user } = useAuth()
   const { logFilm, searchUsers, addBuddy } = useApp()
   const insets = useSafeAreaInsets()
 
+  // Prefer onClose prop (when rendered in a Modal); fall back to navigation.goBack()
+  const handleClose = () => {
+    if (onClose) onClose()
+    else navigation?.goBack()
+  }
+
   // Film logging state
-  const [selectedFilm, setSelectedFilm] = useState(route.params?.preselectedFilm || null)
+  const [selectedFilm, setSelectedFilm] = useState(route?.params?.preselectedFilm || null)
   const [rating, setRating] = useState(0)
   const [review, setReview] = useState('')
   const [watchDate, setWatchDate] = useState(new Date().toISOString().slice(0, 10))
@@ -89,7 +95,7 @@ export default function LogFilmScreen({ route, navigation }) {
         userId: user?.id || '',
       }
       await logFilm(entry)
-      navigation.goBack()
+      handleClose()
     } catch (e) {
       Alert.alert('Error', 'Could not save entry. Please try again.')
     } finally {
@@ -105,7 +111,7 @@ export default function LogFilmScreen({ route, navigation }) {
           <TouchableOpacity onPress={() => setSelectedFilm(null)} style={styles.backBtn}>
             <Text style={styles.backBtnText}>← Change Film</Text>
           </TouchableOpacity>
-          <TouchableOpacity onPress={() => navigation.goBack()}>
+          <TouchableOpacity onPress={handleClose}>
             <Text style={styles.cancelText}>Cancel</Text>
           </TouchableOpacity>
         </View>
@@ -211,8 +217,8 @@ export default function LogFilmScreen({ route, navigation }) {
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <View style={styles.topBar}>
         <Text style={styles.screenTitle}>Find Buddies</Text>
-        <TouchableOpacity onPress={() => navigation.goBack()}>
-          <Text style={styles.cancelText}>Cancel</Text>
+        <TouchableOpacity onPress={handleClose}>
+          <Text style={styles.cancelText}>Close</Text>
         </TouchableOpacity>
       </View>
 
