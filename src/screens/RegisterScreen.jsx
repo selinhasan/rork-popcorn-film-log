@@ -35,7 +35,7 @@ export default function RegisterScreen({ navigation }) {
 
     setLoading(true)
     try {
-      const { session } = await signUp(email.trim().toLowerCase(), password, username.trim())
+      const { session } = await signUp(email.trim().toLowerCase(), password, username.trim().toLowerCase())
 
       // Supabase sends a confirmation email by default.
       // If email confirmation is disabled in your project, session will be set immediately.
