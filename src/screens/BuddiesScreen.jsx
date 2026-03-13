@@ -74,7 +74,6 @@ export default function BuddiesScreen() {
     setPosts(prev => [post, ...prev])
     setNewPostText('')
     setShowNewPost(false)
-    setShowNewBuddy(false)
   }
 
   return (
