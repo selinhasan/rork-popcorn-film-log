@@ -8,26 +8,11 @@ import { useApp } from '../context/AppContext'
 import { useAuth } from '../context/AuthContext'
 import { Colors } from '../theme/colors'
 
-function StarRating({ rating, onChange }) {
-  return (
-    <View style={ratingStyles.row}>
-      {[1, 2, 3, 4, 5].map(i => (
-        <TouchableOpacity key={i} onPress={() => onChange(i)} activeOpacity={0.7}>
-          <Text style={[ratingStyles.popcorn, i <= rating ? ratingStyles.filled : ratingStyles.empty]}>🍿</Text>
-        </TouchableOpacity>
-      ))}
-      {rating > 0 && (
-        <TouchableOpacity onPress={() => onChange(0)} style={{ marginLeft: 8 }}>
-          <Text style={ratingStyles.clear}>Clear</Text>
-        </TouchableOpacity>
-      )}
-    </View>
-  )
-}
+
 
 export default function LogFilmScreen({ route, navigation, onClose }) {
   const { user } = useAuth()
-  const { logFilm, searchUsers, addBuddy } = useApp()
+  const { searchUsers, addBuddy } = useApp()
   const insets = useSafeAreaInsets()
 
   // Prefer onClose prop (when rendered in a Modal); fall back to navigation.goBack()
@@ -35,13 +20,6 @@ export default function LogFilmScreen({ route, navigation, onClose }) {
     if (onClose) onClose()
     else navigation?.goBack()
   }
-
-  // Film logging state
-  const [selectedFilm, setSelectedFilm] = useState(route?.params?.preselectedFilm || null)
-  const [rating, setRating] = useState(0)
-  const [review, setReview] = useState('')
-  const [watchDate, setWatchDate] = useState(new Date().toISOString().slice(0, 10))
-  const [isSaving, setIsSaving] = useState(false)
 
   // User search state
   const [searchText, setSearchText] = useState('')
@@ -82,101 +60,6 @@ export default function LogFilmScreen({ route, navigation, onClose }) {
     }
   }
 
-  const handleSave = async () => {
-    if (!selectedFilm) return
-    setIsSaving(true)
-    try {
-      const entry = {
-        id: Date.now().toString() + Math.random().toString(36).slice(2),
-        film: selectedFilm,
-        rating: Math.round(rating),
-        review: review.trim(),
-        dateWatched: watchDate,
-        userId: user?.id || '',
-      }
-      await logFilm(entry)
-      handleClose()
-    } catch (e) {
-      Alert.alert('Error', 'Could not save entry. Please try again.')
-    } finally {
-      setIsSaving(false)
-    }
-  }
-
-  // ── Film logging view ────────────────────────────────────────────────────────
-  if (selectedFilm) {
-    return (
-      <View style={[styles.container, { paddingTop: insets.top }]}>
-        <View style={styles.topBar}>
-          <TouchableOpacity onPress={() => setSelectedFilm(null)} style={styles.backBtn}>
-            <Text style={styles.backBtnText}>← Change Film</Text>
-          </TouchableOpacity>
-          <TouchableOpacity onPress={handleClose}>
-            <Text style={styles.cancelText}>Cancel</Text>
-          </TouchableOpacity>
-        </View>
-
-        <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 40 }}>
-          <View style={styles.filmRow}>
-            {selectedFilm.posterURL ? (
-              <Image source={{ uri: selectedFilm.posterURL }} style={styles.filmPoster} />
-            ) : (
-              <View style={[styles.filmPoster, { backgroundColor: Colors.cardBackground }]} />
-            )}
-            <View style={{ flex: 1 }}>
-              <Text style={styles.filmTitle}>{selectedFilm.title}</Text>
-              <Text style={styles.filmMeta}>{selectedFilm.year}{selectedFilm.isTV ? ' · TV' : ''}</Text>
-              {selectedFilm.genre?.length > 0 && (
-                <Text style={styles.filmGenre}>{selectedFilm.genre.slice(0, 2).join(', ')}</Text>
-              )}
-            </View>
-          </View>
-
-          <View style={styles.formSection}>
-            <Text style={styles.formLabel}>Rating</Text>
-            <StarRating rating={rating} onChange={setRating} />
-          </View>
-
-          <View style={styles.formSection}>
-            <Text style={styles.formLabel}>Date Watched</Text>
-            <TextInput
-              style={styles.dateInput}
-              value={watchDate}
-              onChangeText={setWatchDate}
-              placeholder="YYYY-MM-DD"
-              placeholderTextColor={Colors.subtleGray}
-            />
-          </View>
-
-          <View style={styles.formSection}>
-            <Text style={styles.formLabel}>Review (optional)</Text>
-            <TextInput
-              style={styles.reviewInput}
-              placeholder="What did you think?"
-              placeholderTextColor={Colors.subtleGray}
-              value={review}
-              onChangeText={setReview}
-              multiline
-              textAlignVertical="top"
-            />
-          </View>
-
-          <TouchableOpacity
-            style={[styles.saveBtn, isSaving && { opacity: 0.7 }]}
-            onPress={handleSave}
-            disabled={isSaving}
-            activeOpacity={0.85}
-          >
-            {isSaving ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <Text style={styles.saveBtnText}>🍿  Save to Diary</Text>
-            )}
-          </TouchableOpacity>
-        </ScrollView>
-      </View>
-    )
-  }
 
   // ── User search view ─────────────────────────────────────────────────────────
   const renderUser = ({ item }) => (
