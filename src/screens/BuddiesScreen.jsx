@@ -101,18 +101,7 @@ export default function BuddiesScreen() {
     setShowNewPost(false)
   }
 //test3
-  const handlePost = () => {
-    if (!newPostText.trim()) return
-    const post = {
-      id: Date.now().toString(),
-      text: newPostText.trim(),
-      username: profile?.username || user?.email?.split('@')[0] || 'You',
-      createdAt: new Date().toISOString(),
-    }
-    setPosts(prev => [post, ...prev])
-    setNewPostText('')
-    setShowNewPost(false)
-  }
+
  
   const handleSearch = useCallback(async (query) => {
     setSearchQuery(query)
