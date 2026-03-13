@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react'
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
-  FlatList, Image, ActivityIndicator, Alert,
+  FlatList, ActivityIndicator, Alert,
 } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useApp } from '../context/AppContext'
@@ -40,19 +40,17 @@ export default function AddBuddyScreen({ route, navigation, onClose }) {
       try {
         const { data, error } = await supabase
           .from('users')
-          .select('id, username, display_name, avatar_url')
-          .ilike('username', `%${text.trim()}%`)
+          .select('id, username, profile_image_name')
+          .ilike('username_lower', `%${text.trim().toLowerCase()}%`)
           .neq('id', user?.id)   // exclude yourself
           .limit(20)
 
         if (error) throw error
 
-        // Normalise field names to match the rest of the UI
         const normalised = (data || []).map(u => ({
           id: u.id,
           username: u.username,
-          displayName: u.display_name,
-          avatarURL: u.avatar_url,
+          profileImageName: u.profile_image_name,
         }))
         setUserResults(normalised)
       } catch (e) {
@@ -77,22 +75,15 @@ export default function AddBuddyScreen({ route, navigation, onClose }) {
 
   const renderUser = ({ item }) => (
     <View style={styles.userRow}>
-      {item.avatarURL ? (
-        <Image source={{ uri: item.avatarURL }} style={styles.avatarCircle} />
-      ) : (
-        <View style={[styles.avatarCircle, styles.avatarPlaceholder]}>
-          <Text style={styles.avatarInitial}>
-            {(item.username || item.displayName || '?')[0].toUpperCase()}
-          </Text>
-        </View>
-      )}
+      <View style={[styles.avatarCircle, styles.avatarPlaceholder]}>
+        <Text style={styles.avatarInitial}>
+          {(item.username || '?')[0].toUpperCase()}
+        </Text>
+      </View>
       <View style={{ flex: 1 }}>
         <Text style={styles.listTitle} numberOfLines={1}>
-          {item.displayName || item.username}
+          @{item.username}
         </Text>
-        {item.username && (
-          <Text style={styles.listMeta}>@{item.username}</Text>
-        )}
       </View>
       <TouchableOpacity
         style={[styles.addBuddyBtn, addingBuddyId === item.id && { opacity: 0.5 }]}
