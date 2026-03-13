@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef } from 'react'
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
   FlatList, Image, ScrollView, ActivityIndicator, Alert,
@@ -8,7 +8,7 @@ import { useApp } from '../context/AppContext'
 import { useAuth } from '../context/AuthContext'
 import { Colors } from '../theme/colors'
 
-{*function StarRating({ rating, onChange }) {
+function StarRating({ rating, onChange }) {
   return (
     <View style={ratingStyles.row}>
       {[1, 2, 3, 4, 5].map(i => (
@@ -24,28 +24,56 @@ import { Colors } from '../theme/colors'
     </View>
   )
 }
-*}
+
 export default function LogFilmScreen({ route, navigation }) {
   const { user } = useAuth()
-  const { trendingFilms, searchResults, isSearching, searchFilms, setSearchResults, logFilm } = useApp()
+  const { logFilm, searchUsers, addBuddy } = useApp()
   const insets = useSafeAreaInsets()
 
-  const [searchText, setSearchText] = useState('')
+  // Film logging state
   const [selectedFilm, setSelectedFilm] = useState(route.params?.preselectedFilm || null)
   const [rating, setRating] = useState(0)
   const [review, setReview] = useState('')
   const [watchDate, setWatchDate] = useState(new Date().toISOString().slice(0, 10))
   const [isSaving, setIsSaving] = useState(false)
 
-  const searchTimer = useRef(null)
+  // User search state
+  const [searchText, setSearchText] = useState('')
+  const [userResults, setUserResults] = useState([])
+  const [isSearching, setIsSearching] = useState(false)
+  const [addingBuddyId, setAddingBuddyId] = useState(null)
 
-  const filmsToShow = searchText.trim() ? searchResults : trendingFilms
+  const searchTimer = useRef(null)
 
   const handleSearchChange = (text) => {
     setSearchText(text)
     clearTimeout(searchTimer.current)
-    if (!text.trim()) { setSearchResults([]); return }
-    searchTimer.current = setTimeout(() => searchFilms(text), 400)
+    if (!text.trim()) {
+      setUserResults([])
+      return
+    }
+    searchTimer.current = setTimeout(async () => {
+      setIsSearching(true)
+      try {
+        const users = await searchUsers(text)
+        setUserResults(users || [])
+      } catch {
+        setUserResults([])
+      } finally {
+        setIsSearching(false)
+      }
+    }, 400)
+  }
+
+  const handleAddBuddy = async (buddy) => {
+    setAddingBuddyId(buddy.id)
+    try {
+      await addBuddy(buddy)
+    } catch (e) {
+      Alert.alert('Error', 'Could not add buddy. Please try again.')
+    } finally {
+      setAddingBuddyId(null)
+    }
   }
 
   const handleSave = async () => {
@@ -54,14 +82,13 @@ export default function LogFilmScreen({ route, navigation }) {
     try {
       const entry = {
         id: Date.now().toString() + Math.random().toString(36).slice(2),
-        film: selectedFilm,          // kept locally (poster, genre, etc.)
-        rating: Math.round(rating),  // smallint in Supabase
+        film: selectedFilm,
+        rating: Math.round(rating),
         review: review.trim(),
-        dateWatched: watchDate,      // 'YYYY-MM-DD' – maps to watched_date
+        dateWatched: watchDate,
         userId: user?.id || '',
       }
       await logFilm(entry)
-      // Navigate back immediately — diary reflects optimistic update already
       navigation.goBack()
     } catch (e) {
       Alert.alert('Error', 'Could not save entry. Please try again.')
@@ -70,6 +97,7 @@ export default function LogFilmScreen({ route, navigation }) {
     }
   }
 
+  // ── Film logging view ────────────────────────────────────────────────────────
   if (selectedFilm) {
     return (
       <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -83,7 +111,6 @@ export default function LogFilmScreen({ route, navigation }) {
         </View>
 
         <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 40 }}>
-          {/* Film info */}
           <View style={styles.filmRow}>
             {selectedFilm.posterURL ? (
               <Image source={{ uri: selectedFilm.posterURL }} style={styles.filmPoster} />
@@ -99,13 +126,11 @@ export default function LogFilmScreen({ route, navigation }) {
             </View>
           </View>
 
-          {/* Rating */}
           <View style={styles.formSection}>
             <Text style={styles.formLabel}>Rating</Text>
             <StarRating rating={rating} onChange={setRating} />
           </View>
 
-          {/* Date */}
           <View style={styles.formSection}>
             <Text style={styles.formLabel}>Date Watched</Text>
             <TextInput
@@ -117,7 +142,6 @@ export default function LogFilmScreen({ route, navigation }) {
             />
           </View>
 
-          {/* Review */}
           <View style={styles.formSection}>
             <Text style={styles.formLabel}>Review (optional)</Text>
             <TextInput
@@ -148,10 +172,45 @@ export default function LogFilmScreen({ route, navigation }) {
     )
   }
 
+  // ── User search view ─────────────────────────────────────────────────────────
+  const renderUser = ({ item }) => (
+    <View style={styles.userRow}>
+      {item.avatarURL ? (
+        <Image source={{ uri: item.avatarURL }} style={styles.avatarCircle} />
+      ) : (
+        <View style={[styles.avatarCircle, styles.avatarPlaceholder]}>
+          <Text style={styles.avatarInitial}>
+            {(item.username || item.displayName || '?')[0].toUpperCase()}
+          </Text>
+        </View>
+      )}
+      <View style={{ flex: 1 }}>
+        <Text style={styles.listTitle} numberOfLines={1}>
+          {item.displayName || item.username}
+        </Text>
+        {item.username && (
+          <Text style={styles.listMeta}>@{item.username}</Text>
+        )}
+      </View>
+      <TouchableOpacity
+        style={[styles.addBuddyBtn, addingBuddyId === item.id && { opacity: 0.5 }]}
+        onPress={() => handleAddBuddy(item)}
+        disabled={addingBuddyId === item.id}
+        activeOpacity={0.75}
+      >
+        {addingBuddyId === item.id ? (
+          <ActivityIndicator size="small" color={Colors.warmRed} />
+        ) : (
+          <Text style={styles.addBuddyBtnText}>+</Text>
+        )}
+      </TouchableOpacity>
+    </View>
+  )
+
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <View style={styles.topBar}>
-        <Text style={styles.screenTitle}>Log a Film</Text>
+        <Text style={styles.screenTitle}>Find Buddies</Text>
         <TouchableOpacity onPress={() => navigation.goBack()}>
           <Text style={styles.cancelText}>Cancel</Text>
         </TouchableOpacity>
@@ -161,7 +220,7 @@ export default function LogFilmScreen({ route, navigation }) {
         <Text style={styles.searchIcon}>🔍</Text>
         <TextInput
           style={styles.searchInput}
-          placeholder="Search films & TV shows..."
+          placeholder="Search by username..."
           placeholderTextColor={Colors.subtleGray}
           value={searchText}
           onChangeText={handleSearchChange}
@@ -169,45 +228,31 @@ export default function LogFilmScreen({ route, navigation }) {
           autoFocus
         />
         {searchText ? (
-          <TouchableOpacity onPress={() => { setSearchText(''); setSearchResults([]) }}>
+          <TouchableOpacity onPress={() => { setSearchText(''); setUserResults([]) }}>
             <Text style={styles.clearBtn}>✕</Text>
           </TouchableOpacity>
         ) : null}
       </View>
 
-      {!searchText.trim() && (
-        <Text style={styles.sectionLabel}>Popular right now</Text>
-      )}
-
       {isSearching ? (
         <View style={styles.centered}>
           <ActivityIndicator size="large" color={Colors.warmRed} />
         </View>
+      ) : !searchText.trim() ? (
+        <View style={styles.centered}>
+          <Text style={styles.emptyHint}>Search for friends by username</Text>
+        </View>
+      ) : userResults.length === 0 ? (
+        <View style={styles.centered}>
+          <Text style={styles.emptyHint}>No users found</Text>
+        </View>
       ) : (
         <FlatList
-          data={filmsToShow}
-          keyExtractor={item => item.id}
+          data={userResults}
+          keyExtractor={item => `user-${item.id}`}
           keyboardShouldPersistTaps="handled"
           contentContainerStyle={{ padding: 16, gap: 10 }}
-          renderItem={({ item }) => (
-            <TouchableOpacity style={styles.filmListRow} onPress={() => setSelectedFilm(item)} activeOpacity={0.8}>
-              {item.posterURL ? (
-                <Image source={{ uri: item.posterURL }} style={styles.listPoster} />
-              ) : (
-                <View style={[styles.listPoster, { backgroundColor: Colors.cardBackground }]} />
-              )}
-              <View style={{ flex: 1 }}>
-                <Text style={styles.listTitle} numberOfLines={2}>{item.title}</Text>
-                <Text style={styles.listMeta}>{item.year}{item.isTV ? ' · TV' : ''}</Text>
-                {item.genre?.length > 0 && (
-                  <Text style={styles.listGenre}>{item.genre.slice(0, 2).join(', ')}</Text>
-                )}
-              </View>
-              {item.averageRating > 0 && (
-                <Text style={styles.listRating}>🍿 {item.averageRating.toFixed(1)}</Text>
-              )}
-            </TouchableOpacity>
-          )}
+          renderItem={renderUser}
         />
       )}
     </View>
@@ -216,7 +261,10 @@ export default function LogFilmScreen({ route, navigation }) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.cream },
-  topBar: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingBottom: 8 },
+  topBar: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    paddingHorizontal: 16, paddingBottom: 8,
+  },
   screenTitle: { fontSize: 20, fontWeight: '700', color: Colors.darkBrown },
   cancelText: { fontSize: 15, color: Colors.sepiaBrown },
   backBtn: {},
@@ -229,14 +277,26 @@ const styles = StyleSheet.create({
   searchIcon: { fontSize: 16, marginRight: 8 },
   searchInput: { flex: 1, paddingVertical: 12, fontSize: 15, color: Colors.darkBrown },
   clearBtn: { fontSize: 14, color: Colors.subtleGray, paddingLeft: 8 },
-  sectionLabel: { fontSize: 15, fontWeight: '600', color: Colors.darkBrown, paddingHorizontal: 16, marginBottom: 4 },
   centered: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  filmListRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', borderRadius: 12, padding: 10, gap: 12 },
-  listPoster: { width: 50, height: 70, borderRadius: 6 },
+  emptyHint: { fontSize: 14, color: Colors.subtleGray },
+  // User row
+  userRow: {
+    flexDirection: 'row', alignItems: 'center',
+    backgroundColor: '#fff', borderRadius: 12, padding: 10, gap: 12,
+  },
+  avatarCircle: { width: 50, height: 50, borderRadius: 25, overflow: 'hidden' },
+  avatarPlaceholder: { backgroundColor: Colors.cardBackground, alignItems: 'center', justifyContent: 'center' },
+  avatarInitial: { fontSize: 20, fontWeight: '700', color: Colors.sepiaBrown },
   listTitle: { fontSize: 14, fontWeight: '600', color: Colors.darkBrown },
   listMeta: { fontSize: 12, color: Colors.subtleGray, marginTop: 2 },
-  listGenre: { fontSize: 11, color: Colors.sepiaBrown, marginTop: 2 },
-  listRating: { fontSize: 12, color: Colors.sepiaBrown, fontWeight: '600' },
+  // Add buddy button
+  addBuddyBtn: {
+    width: 34, height: 34, borderRadius: 17,
+    borderWidth: 2, borderColor: Colors.warmRed,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  addBuddyBtnText: { fontSize: 22, lineHeight: 26, color: Colors.warmRed, fontWeight: '600' },
+  // Film detail view
   filmRow: { flexDirection: 'row', gap: 14, marginBottom: 24 },
   filmPoster: { width: 80, height: 115, borderRadius: 10 },
   filmTitle: { fontSize: 18, fontWeight: '700', color: Colors.darkBrown },
