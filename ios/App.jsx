@@ -66,9 +66,9 @@ function MainTabs() {
 }
 
 function RootNavigator() {
-  const { session, loading } = useAuth()
+const { user, isLoading } = useAuth()
 
-  if (loading) {
+  if (isLoading) {
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: Colors.cream }}>
         <ActivityIndicator size="large" color={Colors.warmRed} />
@@ -78,7 +78,7 @@ function RootNavigator() {
 
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
-      {session ? (
+      {user ? (
         <>
           <Stack.Screen name="Main" component={MainTabs} />
           <Stack.Screen
