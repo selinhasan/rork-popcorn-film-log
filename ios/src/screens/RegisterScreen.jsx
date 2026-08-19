@@ -1,8 +1,12 @@
 import { useState, useEffect } from 'react'
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native'
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, KeyboardAvoidingView, Platform } from 'react-native'
+import { useNavigation } from "@react-navigation/native";
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
 
+
+
+{/*hello
 export default function RegisterScreen({ navigation }) {
   const { signUp } = useAuth()
   const [username, setUsername] = useState('')
@@ -238,3 +242,108 @@ const styles = StyleSheet.create({
   backgroundColor: '#c0c0c0',
   },
 })
+-------------------------------*/}
+
+
+
+
+export default function RegisterScreen() {
+  const navigation = useNavigation();
+  const { register } = useAuth();
+
+  const [username, setUsername] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+
+  async function handleCreateAccount() {
+    setError("");
+    setSubmitting(true);
+    const result = await register({ username, email, password });
+    setSubmitting(false);
+    if (!result.ok) {
+      setError(result.error);
+      return;
+    }
+    // No manual navigation here -- root navigator switches to the main
+    // app automatically once `user` is set in AuthContext.
+  }
+
+  return (
+    <KeyboardAvoidingView
+      style={styles.screen}
+      behavior={Platform.OS === "ios" ? "padding" : undefined}
+    >
+      <Text style={styles.title}>Create your account</Text>
+
+      <TextInput
+        style={styles.input}
+        placeholder="Username"
+        placeholderTextColor="#8a8a85"
+        autoCapitalize="none"
+        autoCorrect={false}
+        value={username}
+        onChangeText={setUsername}
+      />
+
+      <TextInput
+        style={styles.input}
+        placeholder="Email"
+        placeholderTextColor="#8a8a85"
+        autoCapitalize="none"
+        autoCorrect={false}
+        keyboardType="email-address"
+        value={email}
+        onChangeText={setEmail}
+      />
+
+      <TextInput
+        style={styles.input}
+        placeholder="Password"
+        placeholderTextColor="#8a8a85"
+        secureTextEntry
+        value={password}
+        onChangeText={setPassword}
+      />
+      <Text style={styles.hint}>
+        At least 8 characters, with an uppercase letter, a lowercase letter, and a number.
+      </Text>
+
+      {!!error && <Text style={styles.error}>{error}</Text>}
+
+      <TouchableOpacity
+        style={[styles.button, styles.primaryButton]}
+        onPress={handleCreateAccount}
+        disabled={submitting}
+      >
+        <Text style={styles.primaryButtonText}>
+          {submitting ? "Creating account..." : "Create account"}
+        </Text>
+      </TouchableOpacity>
+
+      <TouchableOpacity style={styles.button} onPress={() => navigation.navigate("Login")}>
+        <Text style={styles.linkText}>Already have an account? Log in</Text>
+      </TouchableOpacity>
+    </KeyboardAvoidingView>
+  );
+}
+
+const styles = StyleSheet.create({
+  screen: { flex: 1, justifyContent: "center", padding: 24 },
+  title: { fontSize: 26, fontWeight: "600", marginBottom: 20 },
+  input: {
+    borderWidth: 1,
+    borderColor: "#d8d8d4",
+    borderRadius: 8,
+    padding: 14,
+    fontSize: 16,
+    marginBottom: 12,
+  },
+  hint: { fontSize: 12, color: "#6b6b66", marginTop: -6, marginBottom: 12 },
+  button: { padding: 14, borderRadius: 8, alignItems: "center", marginBottom: 8 },
+  primaryButton: { backgroundColor: "#1c1c1a" },
+  primaryButtonText: { color: "#fff", fontWeight: "600", fontSize: 15 },
+  linkText: { color: "#1c1c1a", textDecorationLine: "underline" },
+  error: { color: "#b3261e", fontSize: 13, marginBottom: 8 },
+});
