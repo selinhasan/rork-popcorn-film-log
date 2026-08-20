@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "Popcorn",
-    "slug": "rork-popcorn-film-log",
+    "slug": "popcorn",
     "scheme": "popcorn",
     "plugins": [
       "expo-router"
@@ -11,6 +11,15 @@
     },
     "android": {
       "package": "com.rorkpopcorn.filmlog"
-    }
+    },
+    "extra": {
+      "router": {
+        "origin": false
+      },
+      "eas": {
+        "projectId": "28216280-9624-4b8b-9a3a-f8b1f196e637"
+      }
+    },
+    "owner": "popcorn-film"
   }
 }

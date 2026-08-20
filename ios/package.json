@@ -18,6 +18,7 @@
     "@rork-ai/toolkit-sdk": "latest",
     "@supabase/supabase-js": "^2.112.3",
     "expo": "~52.0.46",
+    "expo-dev-client": "~5.0.20",
     "expo-router": "~4.0.22",
     "expo-secure-store": "~14.0.1",
     "expo-status-bar": "~2.0.1",
