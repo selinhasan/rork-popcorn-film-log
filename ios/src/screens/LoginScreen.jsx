@@ -1,4 +1,5 @@
 import { useState } from "react";
+
 import {
   Text,
   TextInput,
@@ -6,24 +7,55 @@ import {
   StyleSheet,
   KeyboardAvoidingView,
   Platform,
+  Alert,
 } from "react-native";
+
 import { useNavigation } from "@react-navigation/native";
 import { useAuth } from "../context/AuthContext";
 
+
+// This must match the URL scheme
+// configured for the app.
+const PASSWORD_RESET_REDIRECT =
+  "popcorn://reset-password";
+
+
 export default function LoginScreen() {
   const navigation = useNavigation();
-  const { login } = useAuth();
 
-  const [identifier, setIdentifier] = useState("");
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
-  const [submitting, setSubmitting] = useState(false);
+  const {
+    login,
+    forgotPassword,
+  } = useAuth();
+
+  const [identifier, setIdentifier] =
+    useState("");
+
+  const [password, setPassword] =
+    useState("");
+
+  const [error, setError] =
+    useState("");
+
+  const [submitting, setSubmitting] =
+    useState(false);
+
+  const [sendingReset, setSendingReset] =
+    useState(false);
+
+
+  // -------------------------------------------------------
+  // Login
+  // -------------------------------------------------------
 
   async function handleLogin() {
     setError("");
     setSubmitting(true);
 
-    const result = await login({ identifier, password });
+    const result = await login({
+      identifier,
+      password,
+    });
 
     setSubmitting(false);
 
@@ -31,24 +63,86 @@ export default function LoginScreen() {
       setError(result.error);
       return;
     }
+
+    // No manual navigation required.
+    // AuthContext updates `user`,
+    // causing RootNavigator to switch
+    // to the main app automatically.
   }
+
+
+  // -------------------------------------------------------
+  // Forgot password
+  // -------------------------------------------------------
+
+  async function handleForgotPassword() {
+    setError("");
+
+    const email = identifier.trim();
+
+    if (!email) {
+      setError(
+        "Enter your email address first."
+      );
+
+      return;
+    }
+
+    if (!email.includes("@")) {
+      setError(
+        "Please enter a valid email address."
+      );
+
+      return;
+    }
+
+    setSendingReset(true);
+
+    const result =
+      await forgotPassword(
+        email,
+        PASSWORD_RESET_REDIRECT
+      );
+
+    setSendingReset(false);
+
+    if (!result.ok) {
+      setError(result.error);
+      return;
+    }
+
+    Alert.alert(
+      "Check your email",
+      "We've sent you a password reset link."
+    );
+  }
+
 
   return (
     <KeyboardAvoidingView
       style={styles.screen}
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
+      behavior={
+        Platform.OS === "ios"
+          ? "padding"
+          : undefined
+      }
     >
-      <Text style={styles.title}>Log in</Text>
+      <Text style={styles.title}>
+        Log in
+      </Text>
+
 
       <TextInput
         style={styles.input}
-        placeholder="Email or username"
+        placeholder="Email"
         placeholderTextColor="#8a8a85"
         autoCapitalize="none"
         autoCorrect={false}
+        keyboardType="email-address"
         value={identifier}
         onChangeText={setIdentifier}
       />
+
 
       <TextInput
         style={styles.input}
@@ -59,34 +153,73 @@ export default function LoginScreen() {
         onChangeText={setPassword}
       />
 
-      <TouchableOpacity
-        onPress={() => navigation.navigate("ForgotPassword")}
-        style={styles.forgotButton}
-      >
-        <Text style={styles.forgotText}>Forgot password?</Text>
-      </TouchableOpacity>
-
-      {!!error && <Text style={styles.error}>{error}</Text>}
 
       <TouchableOpacity
-        style={[styles.button, styles.primaryButton]}
-        onPress={handleLogin}
-        disabled={submitting}
+        style={
+          styles.forgotPasswordButton
+        }
+        onPress={
+          handleForgotPassword
+        }
+        disabled={sendingReset}
       >
-        <Text style={styles.primaryButtonText}>
-          {submitting ? "Logging in..." : "Log in"}
+        <Text style={styles.linkText}>
+          {sendingReset
+            ? "Sending..."
+            : "Forgot password?"}
         </Text>
       </TouchableOpacity>
 
+
+      {!!error && (
+        <Text style={styles.error}>
+          {error}
+        </Text>
+      )}
+
+
+      <TouchableOpacity
+        style={[
+          styles.button,
+          styles.primaryButton,
+          submitting &&
+            styles.disabledButton,
+        ]}
+        onPress={handleLogin}
+        disabled={
+          submitting ||
+          sendingReset
+        }
+      >
+        <Text
+          style={
+            styles.primaryButtonText
+          }
+        >
+          {submitting
+            ? "Logging in..."
+            : "Log in"}
+        </Text>
+      </TouchableOpacity>
+
+
       <TouchableOpacity
         style={styles.button}
-        onPress={() => navigation.navigate("Register")}
+        onPress={() =>
+          navigation.navigate(
+            "Register"
+          )
+        }
       >
-        <Text style={styles.linkText}>Create account</Text>
+        <Text style={styles.linkText}>
+          Create account
+        </Text>
       </TouchableOpacity>
+
     </KeyboardAvoidingView>
   );
 }
+
 
 const styles = StyleSheet.create({
   screen: {
@@ -110,15 +243,10 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
 
-  forgotButton: {
+  forgotPasswordButton: {
     alignSelf: "flex-end",
     marginBottom: 16,
-  },
-
-  forgotText: {
-    color: "#1c1c1a",
-    fontSize: 14,
-    textDecorationLine: "underline",
+    marginTop: -2,
   },
 
   button: {
@@ -130,6 +258,10 @@ const styles = StyleSheet.create({
 
   primaryButton: {
     backgroundColor: "#1c1c1a",
+  },
+
+  disabledButton: {
+    opacity: 0.6,
   },
 
   primaryButtonText: {
