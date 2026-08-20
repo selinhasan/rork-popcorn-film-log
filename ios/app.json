@@ -1,0 +1,16 @@
+{
+  "expo": {
+    "name": "Popcorn",
+    "slug": "rork-popcorn-film-log",
+    "scheme": "popcorn",
+    "plugins": [
+      "expo-router"
+    ],
+    "ios": {
+      "bundleIdentifier": "com.rorkpopcorn.filmlog"
+    },
+    "android": {
+      "package": "com.rorkpopcorn.filmlog"
+    }
+  }
+}
