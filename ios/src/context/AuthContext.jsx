@@ -1,7 +1,15 @@
-import { createContext, useContext, useEffect, useState } from "react";
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+} from "react";
+
+import { Linking } from "react-native";
 import { supabase } from "../lib/supabase";
 
 const AuthContext = createContext(null);
+
 
 // ---------------------------------------------------------
 // Password validation
@@ -31,6 +39,54 @@ function getPasswordError(password) {
   return null;
 }
 
+
+// ---------------------------------------------------------
+// Parse parameters from a Supabase deep-link URL
+// Handles both query parameters and URL fragments
+// ---------------------------------------------------------
+
+function getParamsFromUrl(url) {
+  const params = {};
+
+  if (!url) return params;
+
+  const queryIndex = url.indexOf("?");
+  const hashIndex = url.indexOf("#");
+
+  const sections = [];
+
+  if (queryIndex !== -1) {
+    const end = hashIndex !== -1 ? hashIndex : url.length;
+    sections.push(url.slice(queryIndex + 1, end));
+  }
+
+  if (hashIndex !== -1) {
+    sections.push(url.slice(hashIndex + 1));
+  }
+
+  sections
+    .join("&")
+    .split("&")
+    .filter(Boolean)
+    .forEach((part) => {
+      const [rawKey, ...rawValueParts] = part.split("=");
+
+      const rawValue = rawValueParts.join("=");
+
+      if (!rawKey) return;
+
+      const key = decodeURIComponent(rawKey);
+      const value = decodeURIComponent(
+        (rawValue || "").replace(/\+/g, " ")
+      );
+
+      params[key] = value;
+    });
+
+  return params;
+}
+
+
 // ---------------------------------------------------------
 // Auth provider
 // ---------------------------------------------------------
@@ -39,73 +95,182 @@ export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // True when the user has entered the app through
-  // a Supabase password recovery link.
-  const [isPasswordRecovery, setIsPasswordRecovery] = useState(false);
+  // When true, App.jsx displays ResetPasswordScreen
+  // instead of the normal logged-in application.
+  const [isPasswordRecovery, setIsPasswordRecovery] =
+    useState(false);
+
 
   // -------------------------------------------------------
-  // Load existing session and listen for auth changes
+  // Session + authentication listener + deep links
   // -------------------------------------------------------
 
   useEffect(() => {
     let mounted = true;
 
-    async function loadSession() {
+
+    async function handleAuthUrl(url) {
+      if (!url) return;
+
+      console.log("Auth deep link:", url);
+
+      const params = getParamsFromUrl(url);
+
+      if (params.error) {
+        console.error(
+          "Supabase auth link error:",
+          params.error_description || params.error
+        );
+
+        return;
+      }
+
       try {
+        /*
+         * Depending on your Supabase auth configuration,
+         * the recovery link may return either:
+         *
+         * 1. a PKCE code
+         * 2. access_token + refresh_token
+         */
+
+        if (params.code) {
+          const { error } =
+            await supabase.auth.exchangeCodeForSession(
+              params.code
+            );
+
+          if (error) {
+            console.error(
+              "Supabase code exchange error:",
+              error
+            );
+
+            return;
+          }
+        } else if (
+          params.access_token &&
+          params.refresh_token
+        ) {
+          const { error } = await supabase.auth.setSession({
+            access_token: params.access_token,
+            refresh_token: params.refresh_token,
+          });
+
+          if (error) {
+            console.error(
+              "Supabase setSession error:",
+              error
+            );
+
+            return;
+          }
+        }
+
+        // Mark the app as being in password recovery mode.
+        if (params.type === "recovery") {
+          setIsPasswordRecovery(true);
+        }
+      } catch (error) {
+        console.error(
+          "Error processing authentication URL:",
+          error
+        );
+      }
+    }
+
+
+    async function initialiseAuth() {
+      try {
+        // Load an existing stored Supabase session.
         const {
           data: { session },
           error,
         } = await supabase.auth.getSession();
 
         if (error) {
-          console.error("Supabase getSession error:", error);
+          console.error(
+            "Supabase getSession error:",
+            error
+          );
         }
 
         if (mounted) {
           setUser(session?.user ?? null);
-          setIsLoading(false);
+        }
+
+        // Check whether the app was launched from
+        // a password-reset email.
+        const initialUrl = await Linking.getInitialURL();
+
+        if (initialUrl) {
+          await handleAuthUrl(initialUrl);
         }
       } catch (error) {
-        console.error("Error loading Supabase session:", error);
-
+        console.error(
+          "Error initialising authentication:",
+          error
+        );
+      } finally {
         if (mounted) {
-          setUser(null);
           setIsLoading(false);
         }
       }
     }
 
-    loadSession();
 
+    initialiseAuth();
+
+
+    // Listen for Supabase authentication changes.
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((event, session) => {
-      console.log("Supabase auth event:", event);
+    } = supabase.auth.onAuthStateChange(
+      (event, session) => {
+        console.log("Supabase auth event:", event);
 
-      setUser(session?.user ?? null);
+        setUser(session?.user ?? null);
 
-      // Supabase fires this when the user follows
-      // a valid password-reset link.
-      if (event === "PASSWORD_RECOVERY") {
-        setIsPasswordRecovery(true);
+        if (event === "PASSWORD_RECOVERY") {
+          setIsPasswordRecovery(true);
+        }
+
+        if (event === "SIGNED_OUT") {
+          setIsPasswordRecovery(false);
+        }
       }
+    );
 
-      if (event === "SIGNED_OUT") {
-        setIsPasswordRecovery(false);
-      }
-    });
+
+    // Handle a reset link clicked while the app
+    // is already running.
+    const linkingSubscription =
+      Linking.addEventListener(
+        "url",
+        ({ url }) => {
+          handleAuthUrl(url);
+        }
+      );
+
 
     return () => {
       mounted = false;
+
       subscription.unsubscribe();
+      linkingSubscription.remove();
     };
   }, []);
+
 
   // -------------------------------------------------------
   // Register
   // -------------------------------------------------------
 
-  async function register({ username, email, password }) {
+  async function register({
+    username,
+    email,
+    password,
+  }) {
     if (!username?.trim() || !email?.trim()) {
       return {
         ok: false,
@@ -113,7 +278,8 @@ export function AuthProvider({ children }) {
       };
     }
 
-    const passwordError = getPasswordError(password);
+    const passwordError =
+      getPasswordError(password);
 
     if (passwordError) {
       return {
@@ -123,18 +289,25 @@ export function AuthProvider({ children }) {
     }
 
     try {
-      const { data, error } = await supabase.auth.signUp({
-        email: email.trim().toLowerCase(),
-        password,
-        options: {
-          data: {
-            username: username.trim().toLowerCase(),
+      const { data, error } =
+        await supabase.auth.signUp({
+          email: email.trim().toLowerCase(),
+          password,
+
+          options: {
+            data: {
+              username: username
+                .trim()
+                .toLowerCase(),
+            },
           },
-        },
-      });
+        });
 
       if (error) {
-        console.error("Supabase signup error:", error);
+        console.error(
+          "Supabase signup error:",
+          error
+        );
 
         return {
           ok: false,
@@ -145,7 +318,8 @@ export function AuthProvider({ children }) {
       if (!data.user) {
         return {
           ok: false,
-          error: "Account could not be created.",
+          error:
+            "Account could not be created.",
         };
       }
 
@@ -155,24 +329,33 @@ export function AuthProvider({ children }) {
         session: data.session,
       };
     } catch (error) {
-      console.error("Unexpected signup error:", error);
+      console.error(
+        "Unexpected signup error:",
+        error
+      );
 
       return {
         ok: false,
-        error: "Something went wrong. Please try again.",
+        error:
+          "Something went wrong. Please try again.",
       };
     }
   }
+
 
   // -------------------------------------------------------
   // Login
   // -------------------------------------------------------
 
-  async function login({ identifier, password }) {
+  async function login({
+    identifier,
+    password,
+  }) {
     if (!identifier?.trim() || !password) {
       return {
         ok: false,
-        error: "Please enter your email and password.",
+        error:
+          "Please enter your email and password.",
       };
     }
 
@@ -180,13 +363,20 @@ export function AuthProvider({ children }) {
       const {
         data: { user: loggedInUser },
         error,
-      } = await supabase.auth.signInWithPassword({
-        email: identifier.trim().toLowerCase(),
-        password,
-      });
+      } =
+        await supabase.auth.signInWithPassword({
+          email: identifier
+            .trim()
+            .toLowerCase(),
+
+          password,
+        });
 
       if (error) {
-        console.error("Supabase login error:", error);
+        console.error(
+          "Supabase login error:",
+          error
+        );
 
         return {
           ok: false,
@@ -200,55 +390,54 @@ export function AuthProvider({ children }) {
         ok: true,
       };
     } catch (error) {
-      console.error("Unexpected login error:", error);
+      console.error(
+        "Unexpected login error:",
+        error
+      );
 
       return {
         ok: false,
-        error: "Something went wrong. Please try again.",
+        error:
+          "Something went wrong. Please try again.",
       };
     }
   }
 
+
   // -------------------------------------------------------
-  // Forgot password
+  // Send password reset email
   // -------------------------------------------------------
 
-  async function forgotPassword(email, redirectTo = null) {
+  async function forgotPassword(
+    email,
+    redirectTo
+  ) {
     if (!email?.trim()) {
       return {
         ok: false,
-        error: "Please enter your email address.",
+        error:
+          "Please enter your email address.",
       };
     }
 
     try {
-      let result;
-
-      // If we have configured an app deep-link URL,
-      // tell Supabase where to send the user after
-      // clicking the reset link.
-      if (redirectTo) {
-        result = await supabase.auth.resetPasswordForEmail(
+      const { error } =
+        await supabase.auth.resetPasswordForEmail(
           email.trim().toLowerCase(),
           {
             redirectTo,
           }
         );
-      } else {
-        result = await supabase.auth.resetPasswordForEmail(
-          email.trim().toLowerCase()
-        );
-      }
 
-      if (result.error) {
+      if (error) {
         console.error(
           "Supabase password reset error:",
-          result.error
+          error
         );
 
         return {
           ok: false,
-          error: result.error.message,
+          error: error.message,
         };
       }
 
@@ -256,22 +445,27 @@ export function AuthProvider({ children }) {
         ok: true,
       };
     } catch (error) {
-      console.error("Unexpected password reset error:", error);
+      console.error(
+        "Unexpected password reset error:",
+        error
+      );
 
       return {
         ok: false,
-        error: "Could not send password reset email. Please try again.",
+        error:
+          "Could not send password reset email. Please try again.",
       };
     }
   }
 
+
   // -------------------------------------------------------
-  // Update password
-  // Called after the user opens their recovery link.
+  // Set new password after recovery link
   // -------------------------------------------------------
 
   async function updatePassword(password) {
-    const passwordError = getPasswordError(password);
+    const passwordError =
+      getPasswordError(password);
 
     if (passwordError) {
       return {
@@ -281,12 +475,16 @@ export function AuthProvider({ children }) {
     }
 
     try {
-      const { data, error } = await supabase.auth.updateUser({
-        password,
-      });
+      const { data, error } =
+        await supabase.auth.updateUser({
+          password,
+        });
 
       if (error) {
-        console.error("Supabase update password error:", error);
+        console.error(
+          "Supabase update password error:",
+          error
+        );
 
         return {
           ok: false,
@@ -294,8 +492,6 @@ export function AuthProvider({ children }) {
         };
       }
 
-      // Password successfully changed, so recovery mode
-      // is no longer required.
       setIsPasswordRecovery(false);
 
       return {
@@ -303,22 +499,19 @@ export function AuthProvider({ children }) {
         user: data.user,
       };
     } catch (error) {
-      console.error("Unexpected update password error:", error);
+      console.error(
+        "Unexpected update password error:",
+        error
+      );
 
       return {
         ok: false,
-        error: "Could not update password. Please try again.",
+        error:
+          "Could not update password. Please try again.",
       };
     }
   }
 
-  // -------------------------------------------------------
-  // Leave password recovery mode
-  // -------------------------------------------------------
-
-  function clearPasswordRecovery() {
-    setIsPasswordRecovery(false);
-  }
 
   // -------------------------------------------------------
   // Logout
@@ -326,10 +519,14 @@ export function AuthProvider({ children }) {
 
   async function logout() {
     try {
-      const { error } = await supabase.auth.signOut();
+      const { error } =
+        await supabase.auth.signOut();
 
       if (error) {
-        console.error("Supabase logout error:", error);
+        console.error(
+          "Supabase logout error:",
+          error
+        );
 
         return {
           ok: false,
@@ -344,14 +541,19 @@ export function AuthProvider({ children }) {
         ok: true,
       };
     } catch (error) {
-      console.error("Unexpected logout error:", error);
+      console.error(
+        "Unexpected logout error:",
+        error
+      );
 
       return {
         ok: false,
-        error: "Could not log out. Please try again.",
+        error:
+          "Could not log out. Please try again.",
       };
     }
   }
+
 
   // -------------------------------------------------------
   // Context
@@ -371,7 +573,6 @@ export function AuthProvider({ children }) {
         updatePassword,
 
         isPasswordRecovery,
-        clearPasswordRecovery,
       }}
     >
       {children}
@@ -379,9 +580,6 @@ export function AuthProvider({ children }) {
   );
 }
 
-// ---------------------------------------------------------
-// Hook
-// ---------------------------------------------------------
 
 export function useAuth() {
   return useContext(AuthContext);
