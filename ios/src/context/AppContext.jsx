@@ -1,15 +1,28 @@
-import { createContext, useContext, useEffect, useState, useCallback } from 'react'
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+  useCallback,
+} from 'react'
+
 import AsyncStorage from '@react-native-async-storage/async-storage'
+
 import { useAuth } from './AuthContext'
 import { supabase } from '../lib/supabase'
 import * as TMDb from '../lib/tmdb'
 
+
 const AppContext = createContext({})
 
 
-// Map a Supabase filmlogs row → our local entry shape
+// =========================================================
+// DIARY MAPPERS
+// =========================================================
+
 function rowToEntry(row, filmCache = {}) {
-  const cachedFilm = filmCache[row.id]
+  const cachedFilm =
+    filmCache[row.id]
 
   return {
     id: row.id,
@@ -25,58 +38,146 @@ function rowToEntry(row, filmCache = {}) {
       },
 
     rating: row.rating ?? 0,
-    isGoldenPopcorn: false,
+    isGoldenPopcorn:
+      row.is_golden_popcorn ?? false,
+
     review: row.review ?? '',
-    dateWatched: row.watched_date ?? row.created_at,
+
+    dateWatched:
+      row.watched_date ??
+      row.created_at,
+
     userId: row.user_id,
+
     username: '',
   }
 }
 
 
-// Map local diary entry → Supabase row
 function entryToRow(entry) {
   return {
     user_id: entry.userId,
-    title: entry.film?.title ?? '',
+
+    title:
+      entry.film?.title ?? '',
+
     rating:
       entry.rating !== null &&
       entry.rating !== undefined
         ? Number(entry.rating)
         : null,
 
-    review: entry.review || null,
+    review:
+      entry.review || null,
 
-    watched_date: entry.dateWatched
-      ? new Date(entry.dateWatched)
-          .toISOString()
-          .slice(0, 10)
-      : new Date()
-          .toISOString()
-          .slice(0, 10),
+    watched_date:
+      entry.dateWatched
+        ? String(entry.dateWatched)
+            .slice(0, 10)
+        : new Date()
+            .toISOString()
+            .slice(0, 10),
   }
 }
 
 
-export function AppProvider({ children }) {
+// =========================================================
+// BUDDY NORMALISER
+// =========================================================
+
+function normaliseBuddy(info, relationship = {}) {
+  return {
+    user_id: info.user_id,
+
+    username:
+      info.username || '',
+
+    displayName:
+      info['Display name'] ||
+      info.display_name ||
+      info.username ||
+      'Buddy',
+
+    profile_pic_url:
+      info.profile_pic_url || '',
+
+    addedAt:
+      relationship.created_at ||
+      null,
+  }
+}
+
+
+// =========================================================
+// PROVIDER
+// =========================================================
+
+export function AppProvider({
+  children,
+}) {
   const { user } = useAuth()
 
-  const [diaryEntries, setDiaryEntries] = useState([])
-  const [watchlist, setWatchlist] = useState([])
-  const [topFive, setTopFive] = useState([])
 
-  const [trendingFilms, setTrendingFilms] = useState([])
-  const [popularFilms, setPopularFilms] = useState([])
-  const [searchResults, setSearchResults] = useState([])
-  const [genres, setGenres] = useState([])
+  const [
+    diaryEntries,
+    setDiaryEntries,
+  ] = useState([])
 
-  const [isLoadingTMDb, setIsLoadingTMDb] = useState(false)
-  const [isSearching, setIsSearching] = useState(false)
+  const [
+    watchlist,
+    setWatchlist,
+  ] = useState([])
+
+  const [
+    topFive,
+    setTopFive,
+  ] = useState([])
+
+  const [
+    buddies,
+    setBuddies,
+  ] = useState([])
+
+  const [
+    lists,
+    setLists,
+  ] = useState([])
 
 
-  // -------------------------------------------------------
-  // Load diary + local data
-  // -------------------------------------------------------
+  const [
+    trendingFilms,
+    setTrendingFilms,
+  ] = useState([])
+
+  const [
+    popularFilms,
+    setPopularFilms,
+  ] = useState([])
+
+  const [
+    searchResults,
+    setSearchResults,
+  ] = useState([])
+
+  const [
+    genres,
+    setGenres,
+  ] = useState([])
+
+  const [
+    isLoadingTMDb,
+    setIsLoadingTMDb,
+  ] = useState(false)
+
+  const [
+    isSearching,
+    setIsSearching,
+  ] = useState(false)
+
+
+  // =======================================================
+  // LOAD DIARY / WATCHLIST / TOP FIVE
+  // =======================================================
 
   useEffect(() => {
     if (!user) {
@@ -86,16 +187,20 @@ export function AppProvider({ children }) {
       return
     }
 
-    const load = async () => {
+
+    async function load() {
       let filmCache = {}
 
+
       try {
-        const cached = await AsyncStorage.getItem(
-          `filmcache_${user.id}`
-        )
+        const cached =
+          await AsyncStorage.getItem(
+            `filmcache_${user.id}`
+          )
 
         if (cached) {
-          filmCache = JSON.parse(cached)
+          filmCache =
+            JSON.parse(cached)
         }
       } catch (error) {
         console.error(
@@ -105,39 +210,54 @@ export function AppProvider({ children }) {
       }
 
 
-      // Load diary from Supabase
       try {
-        const { data, error } = await supabase
+        const {
+          data,
+          error,
+        } = await supabase
           .from('filmlogs')
           .select('*')
-          .eq('user_id', user.id)
-          .order('watched_date', {
-            ascending: false,
-          })
+          .eq(
+            'user_id',
+            user.id
+          )
+          .order(
+            'watched_date',
+            {
+              ascending: false,
+            }
+          )
+
 
         if (error) {
           console.error(
             'Could not load diary:',
             error
           )
-        } else if (data) {
+        } else {
           setDiaryEntries(
-            data.map(row =>
-              rowToEntry(row, filmCache)
+            (data || []).map(
+              row =>
+                rowToEntry(
+                  row,
+                  filmCache
+                )
             )
           )
         }
       } catch (error) {
         console.error(
-          'Unexpected diary load error:',
+          'Diary load failed:',
           error
         )
       }
 
 
-      // Load watchlist + top five
       try {
-        const [wl, tf] = await Promise.all([
+        const [
+          storedWatchlist,
+          storedTopFive,
+        ] = await Promise.all([
           AsyncStorage.getItem(
             `watchlist_${user.id}`
           ),
@@ -147,13 +267,22 @@ export function AppProvider({ children }) {
           ),
         ])
 
-        if (wl) {
-          setWatchlist(JSON.parse(wl))
-        }
 
-        if (tf) {
-          setTopFive(JSON.parse(tf))
-        }
+        setWatchlist(
+          storedWatchlist
+            ? JSON.parse(
+                storedWatchlist
+              )
+            : []
+        )
+
+        setTopFive(
+          storedTopFive
+            ? JSON.parse(
+                storedTopFive
+              )
+            : []
+        )
       } catch (error) {
         console.error(
           'Could not load local app data:',
@@ -162,310 +291,1139 @@ export function AppProvider({ children }) {
       }
     }
 
+
     load()
   }, [user?.id])
 
 
-  // -------------------------------------------------------
-  // Load TMDb data
-  // -------------------------------------------------------
+  // =======================================================
+  // LOAD BUDDIES
+  // =======================================================
 
   useEffect(() => {
-    if (trendingFilms.length > 0) {
+    if (!user?.id) {
+      setBuddies([])
       return
     }
 
-    const load = async () => {
+
+    async function loadBuddies() {
+      try {
+        const {
+          data: relationships,
+          error: relationshipError,
+        } = await supabase
+          .from('buddies')
+          .select(
+            'buddy_id, created_at'
+          )
+          .eq(
+            'user_id',
+            user.id
+          )
+          .order(
+            'created_at',
+            {
+              ascending: false,
+            }
+          )
+
+
+        if (relationshipError) {
+          throw relationshipError
+        }
+
+
+        if (
+          !relationships ||
+          relationships.length === 0
+        ) {
+          setBuddies([])
+          return
+        }
+
+
+        const buddyIds =
+          relationships.map(
+            item =>
+              item.buddy_id
+          )
+
+
+        const {
+          data: profiles,
+          error: profileError,
+        } = await supabase
+          .from(
+            'public_user_info'
+          )
+          .select(
+            'user_id, username, profile_pic_url, "Display name"'
+          )
+          .in(
+            'user_id',
+            buddyIds
+          )
+
+
+        if (profileError) {
+          throw profileError
+        }
+
+
+        const profileMap =
+          new Map(
+            (profiles || []).map(
+              profile => [
+                profile.user_id,
+                profile,
+              ]
+            )
+          )
+
+
+        const loaded =
+          relationships
+            .map(rel => {
+              const info =
+                profileMap.get(
+                  rel.buddy_id
+                )
+
+              if (!info) {
+                return null
+              }
+
+              return normaliseBuddy(
+                info,
+                rel
+              )
+            })
+            .filter(Boolean)
+
+
+        setBuddies(loaded)
+
+      } catch (error) {
+        console.error(
+          'Could not load buddies:',
+          error
+        )
+
+        setBuddies([])
+      }
+    }
+
+
+    loadBuddies()
+  }, [user?.id])
+
+
+  // =======================================================
+  // LOAD LISTS
+  // =======================================================
+
+  useEffect(() => {
+    if (!user?.id) {
+      setLists([])
+      return
+    }
+
+
+    async function loadLists() {
+      try {
+        const {
+          data: listRows,
+          error: listError,
+        } = await supabase
+          .from('film_lists')
+          .select('*')
+          .eq(
+            'user_id',
+            user.id
+          )
+          .order(
+            'created_at',
+            {
+              ascending: false,
+            }
+          )
+
+
+        if (listError) {
+          throw listError
+        }
+
+
+        if (
+          !listRows ||
+          listRows.length === 0
+        ) {
+          setLists([])
+          return
+        }
+
+
+        const listIds =
+          listRows.map(
+            list => list.id
+          )
+
+
+        const {
+          data: itemRows,
+          error: itemError,
+        } = await supabase
+          .from(
+            'film_list_items'
+          )
+          .select('*')
+          .in(
+            'list_id',
+            listIds
+          )
+          .order(
+            'position',
+            {
+              ascending: true,
+            }
+          )
+
+
+        if (itemError) {
+          throw itemError
+        }
+
+
+        const completeLists =
+          listRows.map(
+            list => ({
+              ...list,
+
+              items:
+                (itemRows || [])
+                  .filter(
+                    item =>
+                      item.list_id ===
+                      list.id
+                  )
+                  .sort(
+                    (a, b) =>
+                      a.position -
+                      b.position
+                  ),
+            })
+          )
+
+
+        setLists(
+          completeLists
+        )
+
+      } catch (error) {
+        console.error(
+          'Could not load lists:',
+          error
+        )
+
+        setLists([])
+      }
+    }
+
+
+    loadLists()
+  }, [user?.id])
+
+
+  // =======================================================
+  // TMDB INITIAL LOAD
+  // =======================================================
+
+  useEffect(() => {
+    if (
+      trendingFilms.length > 0
+    ) {
+      return
+    }
+
+
+    async function load() {
       setIsLoadingTMDb(true)
 
       try {
-        const g = await TMDb.getGenres()
+        const g =
+          await TMDb.getGenres()
 
         setGenres(g)
 
-        const [trending, popular] =
+
+        const [
+          trending,
+          popular,
+        ] =
           await Promise.all([
             TMDb.getTrending(g),
             TMDb.getPopular(g),
           ])
 
-        setTrendingFilms(trending)
-        setPopularFilms(popular)
+
+        setTrendingFilms(
+          trending
+        )
+
+        setPopularFilms(
+          popular
+        )
       } catch (error) {
         console.error(
           'TMDb initial load failed:',
           error
         )
       } finally {
-        setIsLoadingTMDb(false)
+        setIsLoadingTMDb(
+          false
+        )
       }
     }
+
 
     load()
   }, [])
 
 
-  // -------------------------------------------------------
-  // Add diary entry
-  // -------------------------------------------------------
+  // =======================================================
+  // LOG FILM
+  // =======================================================
 
-  const logFilm = useCallback(
-    async entry => {
-      const tempId = entry.id
+  const logFilm =
+    useCallback(
+      async entry => {
+        const tempId =
+          entry.id
 
-      // Optimistic update
-      setDiaryEntries(prev => [
-        entry,
-        ...prev,
-      ])
 
-      const row = entryToRow(entry)
-
-      console.log(
-        'Saving filmlog row:',
-        row
-      )
-
-      const { data, error } = await supabase
-        .from('filmlogs')
-        .insert(row)
-        .select('id')
-        .single()
-
-      if (error) {
-        console.error(
-          'Supabase filmlog insert error:',
-          error
+        setDiaryEntries(
+          prev => [
+            entry,
+            ...prev,
+          ]
         )
 
-        setDiaryEntries(prev =>
-          prev.filter(
-            e => e.id !== tempId
-          )
-        )
 
-        throw new Error(
-          error.message ||
-            'Supabase insert failed'
-        )
-      }
-
-      const serverId = data.id
-
-      setDiaryEntries(prev =>
-        prev.map(e =>
-          e.id === tempId
-            ? {
-                ...e,
-                id: serverId,
-              }
-            : e
-        )
-      )
+        const row =
+          entryToRow(entry)
 
 
-      // Cache film details
-      try {
-        const cached =
-          await AsyncStorage.getItem(
-            `filmcache_${user?.id}`
+        const {
+          data,
+          error,
+        } = await supabase
+          .from('filmlogs')
+          .insert(row)
+          .select('id')
+          .single()
+
+
+        if (error) {
+          console.error(
+            'Supabase filmlog insert error:',
+            error
           )
 
-        const filmCache = cached
-          ? JSON.parse(cached)
-          : {}
 
-        filmCache[serverId] =
-          entry.film
-
-        await AsyncStorage.setItem(
-          `filmcache_${user?.id}`,
-          JSON.stringify(filmCache)
-        )
-      } catch (error) {
-        console.error(
-          'Film cache error:',
-          error
-        )
-      }
-    },
-    [user?.id]
-  )
-
-
-  // -------------------------------------------------------
-  // Update existing diary entry
-  // -------------------------------------------------------
-
-  const updateEntry = useCallback(
-    async entry => {
-      if (!entry?.id) {
-        throw new Error(
-          'Diary entry has no ID.'
-        )
-      }
-
-      const row = entryToRow(entry)
-
-      console.log(
-        'Updating filmlog:',
-        entry.id,
-        row
-      )
-
-      const { error } = await supabase
-        .from('filmlogs')
-        .update(row)
-        .eq('id', entry.id)
-        .eq('user_id', user?.id)
-
-      if (error) {
-        console.error(
-          'Supabase filmlog update error:',
-          error
-        )
-
-        throw new Error(
-          error.message ||
-            'Could not update diary entry.'
-        )
-      }
-
-
-      // Update local state
-      setDiaryEntries(prev =>
-        prev.map(existing =>
-          existing.id === entry.id
-            ? entry
-            : existing
-        )
-      )
-
-
-      // Update cached film details
-      try {
-        const cached =
-          await AsyncStorage.getItem(
-            `filmcache_${user?.id}`
+          setDiaryEntries(
+            prev =>
+              prev.filter(
+                e =>
+                  e.id !==
+                  tempId
+              )
           )
 
-        const filmCache = cached
-          ? JSON.parse(cached)
-          : {}
 
-        filmCache[entry.id] =
-          entry.film
-
-        await AsyncStorage.setItem(
-          `filmcache_${user?.id}`,
-          JSON.stringify(filmCache)
-        )
-      } catch (error) {
-        console.error(
-          'Could not update film cache:',
-          error
-        )
-      }
-    },
-    [user?.id]
-  )
-
-
-  // -------------------------------------------------------
-  // Delete diary entry
-  // -------------------------------------------------------
-
-  const removeEntry = useCallback(
-    async entryId => {
-      if (!entryId) {
-        throw new Error(
-          'Diary entry has no ID.'
-        )
-      }
-
-      const { error } = await supabase
-        .from('filmlogs')
-        .delete()
-        .eq('id', entryId)
-        .eq('user_id', user?.id)
-
-      if (error) {
-        console.error(
-          'Supabase filmlog delete error:',
-          error
-        )
-
-        throw new Error(
-          error.message ||
-            'Could not delete diary entry.'
-        )
-      }
-
-
-      setDiaryEntries(prev =>
-        prev.filter(
-          entry => entry.id !== entryId
-        )
-      )
-
-
-      // Remove from film cache
-      try {
-        const cached =
-          await AsyncStorage.getItem(
-            `filmcache_${user?.id}`
+          throw new Error(
+            error.message
           )
+        }
 
-        if (cached) {
+
+        const serverId =
+          data.id
+
+
+        setDiaryEntries(
+          prev =>
+            prev.map(
+              e =>
+                e.id ===
+                tempId
+                  ? {
+                      ...e,
+                      id:
+                        serverId,
+                    }
+                  : e
+            )
+        )
+
+
+        try {
+          const cached =
+            await AsyncStorage.getItem(
+              `filmcache_${user?.id}`
+            )
+
+
           const filmCache =
-            JSON.parse(cached)
+            cached
+              ? JSON.parse(
+                  cached
+                )
+              : {}
 
-          delete filmCache[entryId]
+
+          filmCache[
+            serverId
+          ] = entry.film
+
 
           await AsyncStorage.setItem(
             `filmcache_${user?.id}`,
-            JSON.stringify(filmCache)
+            JSON.stringify(
+              filmCache
+            )
+          )
+        } catch (error) {
+          console.error(
+            'Film cache error:',
+            error
           )
         }
-      } catch (error) {
-        console.error(
-          'Could not clean film cache:',
-          error
+      },
+      [user?.id]
+    )
+
+
+  // =======================================================
+  // UPDATE DIARY ENTRY
+  // =======================================================
+
+  const updateEntry =
+    useCallback(
+      async entry => {
+        if (!entry?.id) {
+          throw new Error(
+            'Diary entry has no ID.'
+          )
+        }
+
+
+        const row =
+          entryToRow(entry)
+
+
+        const {
+          error,
+        } = await supabase
+          .from('filmlogs')
+          .update(row)
+          .eq(
+            'id',
+            entry.id
+          )
+          .eq(
+            'user_id',
+            user?.id
+          )
+
+
+        if (error) {
+          throw new Error(
+            error.message
+          )
+        }
+
+
+        setDiaryEntries(
+          prev =>
+            prev.map(
+              old =>
+                old.id ===
+                entry.id
+                  ? entry
+                  : old
+            )
         )
-      }
-    },
-    [user?.id]
-  )
 
 
-  // -------------------------------------------------------
-  // Watchlist
-  // -------------------------------------------------------
+        try {
+          const cached =
+            await AsyncStorage.getItem(
+              `filmcache_${user?.id}`
+            )
 
-  const addToWatchlist = useCallback(
-    async film => {
-      if (
-        watchlist.find(
-          f => f.id === film.id
+
+          const filmCache =
+            cached
+              ? JSON.parse(
+                  cached
+                )
+              : {}
+
+
+          filmCache[
+            entry.id
+          ] = entry.film
+
+
+          await AsyncStorage.setItem(
+            `filmcache_${user?.id}`,
+            JSON.stringify(
+              filmCache
+            )
+          )
+        } catch (error) {
+          console.error(
+            'Film cache update failed:',
+            error
+          )
+        }
+      },
+      [user?.id]
+    )
+
+
+  // =======================================================
+  // DELETE DIARY ENTRY
+  // =======================================================
+
+  const removeEntry =
+    useCallback(
+      async entryId => {
+        const {
+          error,
+        } = await supabase
+          .from('filmlogs')
+          .delete()
+          .eq(
+            'id',
+            entryId
+          )
+          .eq(
+            'user_id',
+            user?.id
+          )
+
+
+        if (error) {
+          throw new Error(
+            error.message
+          )
+        }
+
+
+        setDiaryEntries(
+          prev =>
+            prev.filter(
+              entry =>
+                entry.id !==
+                entryId
+            )
         )
-      ) {
-        return
-      }
 
-      const updated = [
-        film,
-        ...watchlist,
+
+        try {
+          const cached =
+            await AsyncStorage.getItem(
+              `filmcache_${user?.id}`
+            )
+
+
+          if (cached) {
+            const filmCache =
+              JSON.parse(
+                cached
+              )
+
+
+            delete filmCache[
+              entryId
+            ]
+
+
+            await AsyncStorage.setItem(
+              `filmcache_${user?.id}`,
+              JSON.stringify(
+                filmCache
+              )
+            )
+          }
+        } catch (error) {
+          console.error(
+            'Film cache cleanup failed:',
+            error
+          )
+        }
+      },
+      [user?.id]
+    )
+
+
+  // =======================================================
+  // BUDDIES
+  // =======================================================
+
+  const addBuddy =
+    useCallback(
+      async buddy => {
+        if (
+          !user?.id ||
+          !buddy?.user_id
+        ) {
+          throw new Error(
+            'Invalid buddy.'
+          )
+        }
+
+
+        const {
+          error,
+        } = await supabase
+          .from('buddies')
+          .insert({
+            user_id:
+              user.id,
+
+            buddy_id:
+              buddy.user_id,
+          })
+
+
+        if (
+          error &&
+          error.code !== '23505'
+        ) {
+          throw new Error(
+            error.message
+          )
+        }
+
+
+        const normalised =
+          normaliseBuddy(
+            buddy,
+            {
+              created_at:
+                new Date()
+                  .toISOString(),
+            }
+          )
+
+
+        setBuddies(
+          prev => {
+            if (
+              prev.some(
+                b =>
+                  b.user_id ===
+                  buddy.user_id
+              )
+            ) {
+              return prev
+            }
+
+
+            return [
+              normalised,
+              ...prev,
+            ]
+          }
+        )
+      },
+      [user?.id]
+    )
+
+
+  const removeBuddy =
+    useCallback(
+      async buddyId => {
+        const {
+          error,
+        } = await supabase
+          .from('buddies')
+          .delete()
+          .eq(
+            'user_id',
+            user?.id
+          )
+          .eq(
+            'buddy_id',
+            buddyId
+          )
+
+
+        if (error) {
+          throw new Error(
+            error.message
+          )
+        }
+
+
+        setBuddies(
+          prev =>
+            prev.filter(
+              buddy =>
+                buddy.user_id !==
+                buddyId
+            )
+        )
+      },
+      [user?.id]
+    )
+
+
+  // =======================================================
+  // LISTS
+  // =======================================================
+
+  const createList =
+    useCallback(
+      async title => {
+        const cleanTitle =
+          title.trim()
+
+
+        if (!cleanTitle) {
+          throw new Error(
+            'List title cannot be empty.'
+          )
+        }
+
+
+        const {
+          data,
+          error,
+        } = await supabase
+          .from('film_lists')
+          .insert({
+            user_id:
+              user?.id,
+
+            title:
+              cleanTitle,
+          })
+          .select('*')
+          .single()
+
+
+        if (error) {
+          throw new Error(
+            error.message
+          )
+        }
+
+
+        const newList = {
+          ...data,
+          items: [],
+        }
+
+
+        setLists(
+          prev => [
+            newList,
+            ...prev,
+          ]
+        )
+
+
+        return newList
+      },
+      [user?.id]
+    )
+
+
+  const renameList =
+    useCallback(
+      async (
+        listId,
+        title
+      ) => {
+        const cleanTitle =
+          title.trim()
+
+
+        if (!cleanTitle) {
+          throw new Error(
+            'List title cannot be empty.'
+          )
+        }
+
+
+        const {
+          error,
+        } = await supabase
+          .from('film_lists')
+          .update({
+            title:
+              cleanTitle,
+
+            updated_at:
+              new Date()
+                .toISOString(),
+          })
+          .eq(
+            'id',
+            listId
+          )
+          .eq(
+            'user_id',
+            user?.id
+          )
+
+
+        if (error) {
+          throw new Error(
+            error.message
+          )
+        }
+
+
+        setLists(
+          prev =>
+            prev.map(
+              list =>
+                list.id ===
+                listId
+                  ? {
+                      ...list,
+                      title:
+                        cleanTitle,
+                    }
+                  : list
+            )
+        )
+      },
+      [user?.id]
+    )
+
+
+  const deleteList =
+    useCallback(
+      async listId => {
+        const {
+          error,
+        } = await supabase
+          .from('film_lists')
+          .delete()
+          .eq(
+            'id',
+            listId
+          )
+          .eq(
+            'user_id',
+            user?.id
+          )
+
+
+        if (error) {
+          throw new Error(
+            error.message
+          )
+        }
+
+
+        setLists(
+          prev =>
+            prev.filter(
+              list =>
+                list.id !==
+                listId
+            )
+        )
+      },
+      [user?.id]
+    )
+
+
+  const addFilmToList =
+    useCallback(
+      async (
+        listId,
+        film
+      ) => {
+        const list =
+          lists.find(
+            item =>
+              item.id ===
+              listId
+          )
+
+
+        if (!list) {
+          throw new Error(
+            'List not found.'
+          )
+        }
+
+
+        if (
+          list.items.some(
+            item =>
+              String(
+                item.film_id
+              ) ===
+              String(film.id)
+          )
+        ) {
+          return
+        }
+
+
+        const position =
+          list.items.length
+
+
+        const {
+          data,
+          error,
+        } = await supabase
+          .from(
+            'film_list_items'
+          )
+          .insert({
+            list_id:
+              listId,
+
+            user_id:
+              user?.id,
+
+            film_id:
+              String(
+                film.id
+              ),
+
+            film,
+
+            position,
+          })
+          .select('*')
+          .single()
+
+
+        if (error) {
+          if (
+            error.code ===
+            '23505'
+          ) {
+            return
+          }
+
+          throw new Error(
+            error.message
+          )
+        }
+
+
+        setLists(
+          prev =>
+            prev.map(
+              current =>
+                current.id ===
+                listId
+                  ? {
+                      ...current,
+
+                      items: [
+                        ...current.items,
+                        data,
+                      ],
+                    }
+                  : current
+            )
+        )
+      },
+      [
+        lists,
+        user?.id,
       ]
+    )
 
-      setWatchlist(updated)
 
-      await AsyncStorage.setItem(
-        `watchlist_${user?.id}`,
-        JSON.stringify(updated)
-      )
-    },
-    [watchlist, user?.id]
-  )
+  const removeFilmFromList =
+    useCallback(
+      async (
+        listId,
+        itemId
+      ) => {
+        const {
+          error,
+        } = await supabase
+          .from(
+            'film_list_items'
+          )
+          .delete()
+          .eq(
+            'id',
+            itemId
+          )
+          .eq(
+            'user_id',
+            user?.id
+          )
+
+
+        if (error) {
+          throw new Error(
+            error.message
+          )
+        }
+
+
+        setLists(
+          prev =>
+            prev.map(
+              list =>
+                list.id ===
+                listId
+                  ? {
+                      ...list,
+
+                      items:
+                        list.items.filter(
+                          item =>
+                            item.id !==
+                            itemId
+                        ),
+                    }
+                  : list
+            )
+        )
+      },
+      [user?.id]
+    )
+
+
+  const reorderListItems =
+    useCallback(
+      async (
+        listId,
+        orderedItems
+      ) => {
+        const results =
+          await Promise.all(
+            orderedItems.map(
+              (
+                item,
+                index
+              ) =>
+                supabase
+                  .from(
+                    'film_list_items'
+                  )
+                  .update({
+                    position:
+                      index,
+                  })
+                  .eq(
+                    'id',
+                    item.id
+                  )
+                  .eq(
+                    'user_id',
+                    user?.id
+                  )
+            )
+          )
+
+
+        const failure =
+          results.find(
+            result =>
+              result.error
+          )
+
+
+        if (failure) {
+          throw new Error(
+            failure.error.message
+          )
+        }
+
+
+        const withPositions =
+          orderedItems.map(
+            (
+              item,
+              index
+            ) => ({
+              ...item,
+              position:
+                index,
+            })
+          )
+
+
+        setLists(
+          prev =>
+            prev.map(
+              list =>
+                list.id ===
+                listId
+                  ? {
+                      ...list,
+                      items:
+                        withPositions,
+                    }
+                  : list
+            )
+        )
+      },
+      [user?.id]
+    )
+
+
+  // =======================================================
+  // WATCHLIST
+  // =======================================================
+
+  const addToWatchlist =
+    useCallback(
+      async film => {
+        if (
+          watchlist.some(
+            item =>
+              item.id ===
+              film.id
+          )
+        ) {
+          return
+        }
+
+
+        const updated = [
+          film,
+          ...watchlist,
+        ]
+
+
+        setWatchlist(
+          updated
+        )
+
+
+        await AsyncStorage.setItem(
+          `watchlist_${user?.id}`,
+          JSON.stringify(
+            updated
+          )
+        )
+      },
+      [
+        watchlist,
+        user?.id,
+      ]
+    )
 
 
   const removeFromWatchlist =
@@ -473,127 +1431,173 @@ export function AppProvider({ children }) {
       async filmId => {
         const updated =
           watchlist.filter(
-            f => f.id !== filmId
+            film =>
+              film.id !==
+              filmId
           )
 
-        setWatchlist(updated)
+
+        setWatchlist(
+          updated
+        )
+
 
         await AsyncStorage.setItem(
           `watchlist_${user?.id}`,
-          JSON.stringify(updated)
+          JSON.stringify(
+            updated
+          )
         )
       },
-      [watchlist, user?.id]
+      [
+        watchlist,
+        user?.id,
+      ]
     )
 
 
-  const isInWatchlist = useCallback(
-    filmId => {
-      return watchlist.some(
-        f => f.id === filmId
-      )
-    },
-    [watchlist]
-  )
+  const isInWatchlist =
+    useCallback(
+      filmId =>
+        watchlist.some(
+          film =>
+            film.id ===
+            filmId
+        ),
+      [watchlist]
+    )
 
 
-  // -------------------------------------------------------
-  // Top five
-  // -------------------------------------------------------
+  // =======================================================
+  // TOP FIVE
+  // =======================================================
 
-  const updateTopFive = useCallback(
-    async films => {
-      setTopFive(films)
-
-      await AsyncStorage.setItem(
-        `topfive_${user?.id}`,
-        JSON.stringify(films)
-      )
-    },
-    [user?.id]
-  )
+  const updateTopFive =
+    useCallback(
+      async films => {
+        const firstFive =
+          films.slice(0, 5)
 
 
-  // -------------------------------------------------------
-  // TMDb search
-  // -------------------------------------------------------
+        setTopFive(
+          firstFive
+        )
 
-  const searchFilms = useCallback(
-    async query => {
-      if (!query.trim()) {
-        setSearchResults([])
-        return
-      }
 
-      setIsSearching(true)
+        await AsyncStorage.setItem(
+          `topfive_${user?.id}`,
+          JSON.stringify(
+            firstFive
+          )
+        )
+      },
+      [user?.id]
+    )
 
-      try {
-        const results =
-          await TMDb.searchMulti(
-            query,
-            genres
+
+  // =======================================================
+  // TMDB SEARCH
+  // =======================================================
+
+  const searchFilms =
+    useCallback(
+      async query => {
+        if (
+          !query.trim()
+        ) {
+          setSearchResults(
+            []
           )
 
-        setSearchResults(results)
-      } catch (error) {
-        console.error(
-          'TMDb search failed:',
-          error
+          return
+        }
+
+
+        setIsSearching(
+          true
         )
 
-        setSearchResults([])
-      } finally {
-        setIsSearching(false)
-      }
-    },
-    [genres]
-  )
+
+        try {
+          const results =
+            await TMDb.searchMulti(
+              query,
+              genres
+            )
 
 
-  const discoverFilms = useCallback(
-    async (genreId, sortBy) => {
-      try {
-        return await TMDb.discoverFilms(
-          genreId,
-          sortBy,
-          genres
-        )
-      } catch (error) {
-        console.error(
-          'TMDb discover failed:',
-          error
-        )
-
-        return []
-      }
-    },
-    [genres]
-  )
+          setSearchResults(
+            results
+          )
+        } catch (error) {
+          console.error(
+            'TMDb search failed:',
+            error
+          )
 
 
-  const fetchFilmDetail = useCallback(
-    async filmId => {
-      try {
-        return await TMDb.getMovieDetail(
-          filmId,
-          genres
-        )
-      } catch (error) {
-        console.error(
-          'TMDb film detail failed:',
-          error
-        )
-
-        return null
-      }
-    },
-    [genres]
-  )
+          setSearchResults(
+            []
+          )
+        } finally {
+          setIsSearching(
+            false
+          )
+        }
+      },
+      [genres]
+    )
 
 
-  // -------------------------------------------------------
-  // Context
-  // -------------------------------------------------------
+  const discoverFilms =
+    useCallback(
+      async (
+        genreId,
+        sortBy
+      ) => {
+        try {
+          return await TMDb.discoverFilms(
+            genreId,
+            sortBy,
+            genres
+          )
+        } catch (error) {
+          console.error(
+            'TMDb discover failed:',
+            error
+          )
+
+          return []
+        }
+      },
+      [genres]
+    )
+
+
+  const fetchFilmDetail =
+    useCallback(
+      async filmId => {
+        try {
+          return await TMDb.getMovieDetail(
+            filmId,
+            genres
+          )
+        } catch (error) {
+          console.error(
+            'TMDb detail failed:',
+            error
+          )
+
+          return null
+        }
+      },
+      [genres]
+    )
+
+
+  // =======================================================
+  // PROVIDER
+  // =======================================================
 
   return (
     <AppContext.Provider
@@ -601,6 +1605,9 @@ export function AppProvider({ children }) {
         diaryEntries,
         watchlist,
         topFive,
+
+        buddies,
+        lists,
 
         trendingFilms,
         popularFilms,
@@ -613,6 +1620,16 @@ export function AppProvider({ children }) {
         logFilm,
         updateEntry,
         removeEntry,
+
+        addBuddy,
+        removeBuddy,
+
+        createList,
+        renameList,
+        deleteList,
+        addFilmToList,
+        removeFilmFromList,
+        reorderListItems,
 
         addToWatchlist,
         removeFromWatchlist,
