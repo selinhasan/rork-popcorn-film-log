@@ -1,6 +1,8 @@
 import { NavigationContainer } from '@react-navigation/native'
 import { createNativeStackNavigator } from '@react-navigation/native-stack'
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs'
+import ListsScreen from './src/screens/ListsScreen'
+import ListEditorScreen from './src/screens/ListEditorScreen'
 
 import {
   ActivityIndicator,
@@ -189,6 +191,15 @@ function RootNavigator() {
           <Stack.Screen
             name="Main"
             component={MainTabs}
+          />
+          <Stack.Screen
+            name="Lists"
+            component={ListsScreen}
+          />
+          
+          <Stack.Screen
+            name="ListEditor"
+            component={ListEditorScreen}
           />
 
           <Stack.Screen
