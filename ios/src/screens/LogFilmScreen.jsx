@@ -62,7 +62,7 @@ export default function LogFilmScreen({ route, navigation }) {
       }
       await logFilm(entry)
       // Navigate back immediately — diary reflects optimistic update already
-       onClose?.() ?? navigation?.goBack()
+       navigation.goBack()
       } catch (e) {
         console.error('Save film error:', e)
       
@@ -82,7 +82,7 @@ export default function LogFilmScreen({ route, navigation }) {
           <TouchableOpacity onPress={() => setSelectedFilm(null)} style={styles.backBtn}>
             <Text style={styles.backBtnText}>← Change Film</Text>
           </TouchableOpacity>
-          <TouchableOpacity onPress={() =>  onClose?.() ?? navigation?.goBack()}>
+          <TouchableOpacity onPress={() => navigation.goBack()}>
             <Text style={styles.cancelText}>Cancel</Text>
           </TouchableOpacity>
         </View>
