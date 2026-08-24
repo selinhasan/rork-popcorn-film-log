@@ -45,16 +45,12 @@ function MainTabs() {
 
         tabBarStyle: {
           backgroundColor: '#fff',
-          borderTopColor:
-            Colors.subtleGray + '33',
+          borderTopColor: Colors.subtleGray + '33',
           height: 60,
         },
 
-        tabBarActiveTintColor:
-          Colors.warmRed,
-
-        tabBarInactiveTintColor:
-          Colors.subtleGray,
+        tabBarActiveTintColor: Colors.warmRed,
+        tabBarInactiveTintColor: Colors.subtleGray,
 
         tabBarLabelStyle: {
           fontSize: 11,
@@ -107,47 +103,81 @@ function MainTabs() {
 }
 
 
-{isPasswordRecovery ? (
-  <Stack.Screen
-    name="ResetPassword"
-    component={ResetPasswordScreen}
-  />
-) : user ? (
-  <>
-    <Stack.Screen
-      name="Main"
-      component={MainTabs}
-    />
+function RootNavigator() {
+  const {
+    user,
+    isLoading,
+    isPasswordRecovery,
+  } = useAuth()
 
-    <Stack.Screen
-      name="LogFilm"
-      component={LogFilmScreen}
-      options={{
-        presentation: 'modal',
+  if (isLoading) {
+    return (
+      <View
+        style={{
+          flex: 1,
+          justifyContent: 'center',
+          alignItems: 'center',
+          backgroundColor: Colors.cream,
+        }}
+      >
+        <ActivityIndicator
+          size="large"
+          color={Colors.warmRed}
+        />
+      </View>
+    )
+  }
+
+  return (
+    <Stack.Navigator
+      screenOptions={{
+        headerShown: false,
       }}
-    />
+    >
+      {isPasswordRecovery ? (
+        <Stack.Screen
+          name="ResetPassword"
+          component={ResetPasswordScreen}
+        />
+      ) : user ? (
+        <>
+          <Stack.Screen
+            name="Main"
+            component={MainTabs}
+          />
 
-    <Stack.Screen
-      name="Buddies"
-      component={BuddiesScreen}
-      options={{
-        presentation: 'modal',
-      }}
-    />
-  </>
-) : (
-  <>
-    <Stack.Screen
-      name="Register"
-      component={RegisterScreen}
-    />
+          <Stack.Screen
+            name="LogFilm"
+            component={LogFilmScreen}
+            options={{
+              presentation: 'modal',
+            }}
+          />
 
-    <Stack.Screen
-      name="Login"
-      component={LoginScreen}
-    />
-  </>
-)}
+          <Stack.Screen
+            name="BuddiesModal"
+            component={BuddiesScreen}
+            options={{
+              presentation: 'modal',
+            }}
+          />
+        </>
+      ) : (
+        <>
+          <Stack.Screen
+            name="Login"
+            component={LoginScreen}
+          />
+
+          <Stack.Screen
+            name="Register"
+            component={RegisterScreen}
+          />
+        </>
+      )}
+    </Stack.Navigator>
+  )
+}
 
 
 export default function App() {
