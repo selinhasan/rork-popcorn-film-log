@@ -1,11 +1,24 @@
 import { NavigationContainer } from '@react-navigation/native'
 import { createNativeStackNavigator } from '@react-navigation/native-stack'
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs'
-import { ActivityIndicator, View, Text } from 'react-native'
 
-import { AuthProvider, useAuth } from './src/context/AuthContext'
-import { AppProvider } from './src/context/AppContext'
+import {
+  ActivityIndicator,
+  View,
+  Text,
+} from 'react-native'
+
+import {
+  AuthProvider,
+  useAuth,
+} from './src/context/AuthContext'
+
+import {
+  AppProvider,
+} from './src/context/AppContext'
+
 import { Colors } from './src/theme/colors'
+
 
 import RegisterScreen from './src/screens/RegisterScreen'
 import LoginScreen from './src/screens/LoginScreen'
@@ -17,8 +30,23 @@ import BuddiesScreen from './src/screens/BuddiesScreen'
 import ProfileScreen from './src/screens/ProfileScreen'
 import LogFilmScreen from './src/screens/LogFilmScreen'
 
-const Stack = createNativeStackNavigator()
-const Tab = createBottomTabNavigator()
+import StatsScreen from './src/screens/StatsScreen'
+
+import {
+  SettingsScreen,
+  EditDisplayNameScreen,
+  EditUsernameScreen,
+  EditEmailScreen,
+  EditProfilePictureScreen,
+  EditTopFiveScreen,
+} from './src/screens/EditInfoScreens'
+
+
+const Stack =
+  createNativeStackNavigator()
+
+const Tab =
+  createBottomTabNavigator()
 
 
 function TabIcon({ emoji }) {
@@ -45,12 +73,18 @@ function MainTabs() {
 
         tabBarStyle: {
           backgroundColor: '#fff',
-          borderTopColor: Colors.subtleGray + '33',
+          borderTopColor:
+            Colors.subtleGray +
+            '33',
+
           height: 60,
         },
 
-        tabBarActiveTintColor: Colors.warmRed,
-        tabBarInactiveTintColor: Colors.subtleGray,
+        tabBarActiveTintColor:
+          Colors.warmRed,
+
+        tabBarInactiveTintColor:
+          Colors.subtleGray,
 
         tabBarLabelStyle: {
           fontSize: 11,
@@ -110,23 +144,32 @@ function RootNavigator() {
     isPasswordRecovery,
   } = useAuth()
 
+
   if (isLoading) {
     return (
       <View
         style={{
           flex: 1,
-          justifyContent: 'center',
-          alignItems: 'center',
-          backgroundColor: Colors.cream,
+          justifyContent:
+            'center',
+
+          alignItems:
+            'center',
+
+          backgroundColor:
+            Colors.cream,
         }}
       >
         <ActivityIndicator
           size="large"
-          color={Colors.warmRed}
+          color={
+            Colors.warmRed
+          }
         />
       </View>
     )
   }
+
 
   return (
     <Stack.Navigator
@@ -137,7 +180,9 @@ function RootNavigator() {
       {isPasswordRecovery ? (
         <Stack.Screen
           name="ResetPassword"
-          component={ResetPasswordScreen}
+          component={
+            ResetPasswordScreen
+          }
         />
       ) : user ? (
         <>
@@ -148,30 +193,92 @@ function RootNavigator() {
 
           <Stack.Screen
             name="LogFilm"
-            component={LogFilmScreen}
+            component={
+              LogFilmScreen
+            }
             options={{
-              presentation: 'modal',
+              presentation:
+                'modal',
             }}
           />
 
           <Stack.Screen
             name="BuddiesModal"
-            component={BuddiesScreen}
+            component={
+              BuddiesScreen
+            }
             options={{
-              presentation: 'modal',
+              presentation:
+                'modal',
             }}
+          />
+
+
+          {/* PROFILE */}
+
+          <Stack.Screen
+            name="Stats"
+            component={
+              StatsScreen
+            }
+          />
+
+          <Stack.Screen
+            name="Settings"
+            component={
+              SettingsScreen
+            }
+          />
+
+          <Stack.Screen
+            name="EditDisplayName"
+            component={
+              EditDisplayNameScreen
+            }
+          />
+
+          <Stack.Screen
+            name="EditUsername"
+            component={
+              EditUsernameScreen
+            }
+          />
+
+          <Stack.Screen
+            name="EditEmail"
+            component={
+              EditEmailScreen
+            }
+          />
+
+          <Stack.Screen
+            name="EditProfilePicture"
+            component={
+              EditProfilePictureScreen
+            }
+          />
+
+          <Stack.Screen
+            name="EditTopFive"
+            component={
+              EditTopFiveScreen
+            }
           />
         </>
       ) : (
         <>
           <Stack.Screen
             name="Login"
-            component={LoginScreen}
+            component={
+              LoginScreen
+            }
           />
 
           <Stack.Screen
             name="Register"
-            component={RegisterScreen}
+            component={
+              RegisterScreen
+            }
           />
         </>
       )}
