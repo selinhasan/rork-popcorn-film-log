@@ -1288,7 +1288,7 @@ const styles =
     },
 
     reviewCard: {
-      width: 172,
+      width: 180,
       minHeight: 150,
       backgroundColor: '#fff',
       borderRadius: 14,
