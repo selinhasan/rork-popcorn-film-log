@@ -107,86 +107,47 @@ function MainTabs() {
 }
 
 
-function RootNavigator() {
-  const {
-    user,
-    isLoading,
-    isPasswordRecovery,
-  } = useAuth()
+{isPasswordRecovery ? (
+  <Stack.Screen
+    name="ResetPassword"
+    component={ResetPasswordScreen}
+  />
+) : user ? (
+  <>
+    <Stack.Screen
+      name="Main"
+      component={MainTabs}
+    />
 
-
-  if (isLoading) {
-    return (
-      <View
-        style={{
-          flex: 1,
-          justifyContent: 'center',
-          alignItems: 'center',
-          backgroundColor:
-            Colors.cream,
-        }}
-      >
-        <ActivityIndicator
-          size="large"
-          color={Colors.warmRed}
-        />
-      </View>
-    )
-  }
-
-
-  return (
-    <Stack.Navigator
-      screenOptions={{
-        headerShown: false,
+    <Stack.Screen
+      name="LogFilm"
+      component={LogFilmScreen}
+      options={{
+        presentation: 'modal',
       }}
-    >
+    />
 
-      {/*
-        IMPORTANT:
-        Recovery mode must be checked
-        before normal user login.
-      */}
+    <Stack.Screen
+      name="Buddies"
+      component={BuddiesScreen}
+      options={{
+        presentation: 'modal',
+      }}
+    />
+  </>
+) : (
+  <>
+    <Stack.Screen
+      name="Register"
+      component={RegisterScreen}
+    />
 
-      {isPasswordRecovery ? (
-        <Stack.Screen
-          name="ResetPassword"
-          component={
-            ResetPasswordScreen
-          }
-        />
-      ) : user ? (
-        <>
-          <Stack.Screen
-            name="Main"
-            component={MainTabs}
-          />
-
-          <Stack.Screen
-            name="Buddies"
-            component={BuddiesScreen}
-            options={{
-              presentation: 'modal',
-            }}
-          />
-        </>
-      ) : (
-        <>
-          <Stack.Screen
-            name="Register"
-            component={RegisterScreen}
-          />
-
-          <Stack.Screen
-            name="Login"
-            component={LoginScreen}
-          />
-        </>
-      )}
-
-    </Stack.Navigator>
-  )
-}
+    <Stack.Screen
+      name="Login"
+      component={LoginScreen}
+    />
+  </>
+)}
 
 
 export default function App() {
