@@ -8,40 +8,62 @@ import {
   FlatList,
 } from 'react-native'
 
-import { useSafeAreaInsets } from 'react-native-safe-area-context'
+import {
+  useSafeAreaInsets,
+} from 'react-native-safe-area-context'
+
 import { useAuth } from '../context/AuthContext'
 import { useApp } from '../context/AppContext'
 import { Colors } from '../theme/colors'
 
 
-function getCurrentYear() {
-  return new Date().getFullYear()
+function currentYear() {
+  return new Date()
+    .getFullYear()
 }
 
 
-function isInYear(dateValue, year) {
-  if (!dateValue) return false
-
-  const yearFromString = String(dateValue).slice(0, 4)
-
-  return yearFromString === String(year)
+function isThisYear(
+  dateValue
+) {
+  return (
+    String(
+      dateValue || ''
+    ).slice(0, 4) ===
+    String(
+      currentYear()
+    )
+  )
 }
 
 
-function FilmPoster({ film, size = 'normal' }) {
-  const width = size === 'small' ? 58 : 72
-  const height = size === 'small' ? 86 : 106
+function FilmPoster({
+  film,
+  width = 72,
+}) {
+  const height =
+    Math.round(
+      width * 1.48
+    )
+
 
   return (
-    <View style={{ width }}>
+    <View
+      style={{
+        width,
+        marginRight: 10,
+      }}
+    >
       {film?.posterURL ? (
         <Image
-          source={{ uri: film.posterURL }}
+          source={{
+            uri:
+              film.posterURL,
+          }}
           style={{
             width,
             height,
             borderRadius: 8,
-            backgroundColor: Colors.cardBackground,
           }}
         />
       ) : (
@@ -50,112 +72,163 @@ function FilmPoster({ film, size = 'normal' }) {
             width,
             height,
             borderRadius: 8,
-            backgroundColor: Colors.cardBackground,
-            alignItems: 'center',
-            justifyContent: 'center',
+            backgroundColor:
+              Colors.cardBackground,
+            alignItems:
+              'center',
+            justifyContent:
+              'center',
           }}
         >
-          <Text style={{ fontSize: 24 }}>🎬</Text>
+          <Text
+            style={{
+              fontSize: 24,
+            }}
+          >
+            🎬
+          </Text>
         </View>
       )}
 
       <Text
+        style={
+          styles.posterTitle
+        }
         numberOfLines={2}
-        style={styles.posterTitle}
       >
-        {film?.title || 'Unknown'}
+        {film?.title}
       </Text>
     </View>
   )
 }
 
 
-function SectionTitle({ children }) {
-  return (
-    <Text style={styles.sectionTitle}>
-      {children}
-    </Text>
-  )
-}
+export default function ProfileScreen({
+  navigation,
+}) {
+  const insets =
+    useSafeAreaInsets()
 
-
-export default function ProfileScreen({ navigation }) {
-  const insets = useSafeAreaInsets()
-
-  const { user } = useAuth()
-
-  const app = useApp()
+  const {
+    user,
+  } = useAuth()
 
   const {
     diaryEntries = [],
     topFive = [],
     watchlist = [],
-  } = app
+    lists = [],
+    buddies = [],
+  } = useApp()
 
-  // These won't crash if your AppContext does not expose them yet.
-  const lists = app.lists || []
-  const buddies = app.buddies || []
 
-  const metadata = user?.user_metadata || {}
+  const metadata =
+    user?.user_metadata ||
+    {}
+
 
   const displayName =
     metadata.display_name ||
     metadata.full_name ||
-    metadata.name ||
     metadata.username ||
     'Film Lover'
 
+
   const rawUsername =
-    metadata.username || 'username'
+    metadata.username ||
+    user?.email
+      ?.split('@')[0] ||
+    'username'
+
 
   const username =
-    rawUsername.startsWith('@')
+    rawUsername.startsWith(
+      '@'
+    )
       ? rawUsername
       : `@${rawUsername}`
+
 
   const profilePicture =
     metadata.avatar_url ||
     metadata.profile_picture ||
     ''
 
-  const currentYear = getCurrentYear()
 
-  const thisYearEntries = diaryEntries.filter(entry =>
-    isInYear(entry.dateWatched, currentYear)
-  )
+  const year =
+    currentYear()
 
-  const reviewedEntries = diaryEntries.filter(
-    entry => entry.review?.trim()
-  )
 
-  const recentActivity = [...diaryEntries]
+  const entriesThisYear =
+    diaryEntries.filter(
+      entry =>
+        isThisYear(
+          entry.dateWatched
+        )
+    )
+
+
+  const recentActivity = [
+    ...diaryEntries,
+  ]
     .sort(
       (a, b) =>
-        new Date(b.dateWatched) -
-        new Date(a.dateWatched)
+        new Date(
+          b.dateWatched
+        ) -
+        new Date(
+          a.dateWatched
+        )
     )
     .slice(0, 5)
 
-  const recentReviews = [...reviewedEntries]
+
+  const reviews = [
+    ...diaryEntries,
+  ]
+    .filter(
+      entry =>
+        entry.review?.trim()
+    )
     .sort(
       (a, b) =>
-        new Date(b.dateWatched) -
-        new Date(a.dateWatched)
+        new Date(
+          b.dateWatched
+        ) -
+        new Date(
+          a.dateWatched
+        )
     )
-    .slice(0, 4)
-
-  const goldenPopcornEntries = diaryEntries
-    .filter(entry => entry.isGoldenPopcorn)
-    .slice(0, 5)
 
 
-  function goToRootScreen(screenName) {
-    const parent = navigation.getParent()
+  const recentReviews =
+    reviews.slice(0, 10)
+
+
+  const golden =
+    diaryEntries.filter(
+      entry =>
+        entry.isGoldenPopcorn
+    )
+
+
+  function navigateRoot(
+    screen,
+    params
+  ) {
+    const parent =
+      navigation.getParent()
 
     if (parent) {
-      parent.navigate(screenName)
+      parent.navigate(
+        screen,
+        params
+      )
     } else {
-      navigation.navigate(screenName)
+      navigation.navigate(
+        screen,
+        params
+      )
     }
   }
 
@@ -165,12 +238,15 @@ export default function ProfileScreen({ navigation }) {
       style={[
         styles.container,
         {
-          paddingTop: insets.top,
+          paddingTop:
+            insets.top,
         },
       ]}
     >
       <ScrollView
-        showsVerticalScrollIndicator={false}
+        showsVerticalScrollIndicator={
+          false
+        }
         contentContainerStyle={{
           paddingBottom: 100,
         }}
@@ -178,54 +254,93 @@ export default function ProfileScreen({ navigation }) {
 
         {/* HEADER */}
 
-        <View style={styles.header}>
-          <View style={styles.headerSpacer} />
+        <View
+          style={
+            styles.header
+          }
+        >
+          <View
+            style={{
+              width: 42,
+            }}
+          />
 
-          <Text style={styles.headerTitle}>
+          <Text
+            style={
+              styles.headerTitle
+            }
+          >
             Profile
           </Text>
 
           <TouchableOpacity
-            style={styles.settingsButton}
+            style={
+              styles.settingsButton
+            }
             onPress={() =>
-              goToRootScreen('Settings')
+              navigateRoot(
+                'Settings'
+              )
             }
           >
-            <Text style={styles.settingsIcon}>
+            <Text
+              style={
+                styles.settingsIcon
+              }
+            >
               ⚙︎
             </Text>
           </TouchableOpacity>
         </View>
 
 
-        {/* USER */}
+        {/* PROFILE */}
 
-        <View style={styles.profileHeader}>
+        <View
+          style={
+            styles.profileHeader
+          }
+        >
           {profilePicture ? (
             <Image
               source={{
-                uri: profilePicture,
+                uri:
+                  profilePicture,
               }}
-              style={styles.avatar}
+              style={
+                styles.avatar
+              }
             />
           ) : (
             <View
               style={[
                 styles.avatar,
-                styles.avatarPlaceholder,
+                styles.placeholder,
               ]}
             >
-              <Text style={styles.avatarEmoji}>
+              <Text
+                style={{
+                  fontSize: 42,
+                }}
+              >
                 🍿
               </Text>
             </View>
           )}
 
-          <Text style={styles.displayName}>
+          <Text
+            style={
+              styles.displayName
+            }
+          >
             {displayName}
           </Text>
 
-          <Text style={styles.username}>
+          <Text
+            style={
+              styles.username
+            }
+          >
             {username}
           </Text>
         </View>
@@ -233,26 +348,46 @@ export default function ProfileScreen({ navigation }) {
 
         {/* TOP FIVE */}
 
-        <View style={styles.section}>
-          <SectionTitle>Top 5 Films</SectionTitle>
+        <View
+          style={
+            styles.section
+          }
+        >
+          <Text
+            style={
+              styles.sectionTitle
+            }
+          >
+            Top 5 Films
+          </Text>
 
           {topFive.length > 0 ? (
             <ScrollView
               horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.horizontalRow}
+              showsHorizontalScrollIndicator={
+                false
+              }
             >
-              {topFive.slice(0, 5).map((film, index) => (
-                <View
-                  key={`${film.id}-${index}`}
-                  style={styles.posterItem}
-                >
-                  <FilmPoster film={film} />
-                </View>
-              ))}
+              {topFive
+                .slice(0, 5)
+                .map(
+                  (
+                    film,
+                    index
+                  ) => (
+                    <FilmPoster
+                      key={`${film.id}-${index}`}
+                      film={film}
+                    />
+                  )
+                )}
             </ScrollView>
           ) : (
-            <Text style={styles.emptyText}>
+            <Text
+              style={
+                styles.emptyText
+              }
+            >
               No favourite films selected yet.
             </Text>
           )}
@@ -261,143 +396,250 @@ export default function ProfileScreen({ navigation }) {
 
         {/* GOLDEN POPCORN */}
 
-        <View style={styles.section}>
-          <SectionTitle>Golden Popcorn</SectionTitle>
+        <View
+          style={
+            styles.section
+          }
+        >
+          <Text
+            style={
+              styles.sectionTitle
+            }
+          >
+            Golden Popcorn
+          </Text>
 
-          {goldenPopcornEntries.length > 0 ? (
+          {golden.length > 0 ? (
             <ScrollView
               horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.horizontalRow}
+              showsHorizontalScrollIndicator={
+                false
+              }
             >
-              {goldenPopcornEntries.map(entry => (
-                <View
-                  key={entry.id}
-                  style={styles.posterItem}
-                >
-                  <FilmPoster film={entry.film} />
-                </View>
-              ))}
+              {golden.map(
+                entry => (
+                  <FilmPoster
+                    key={
+                      entry.id
+                    }
+                    film={
+                      entry.film
+                    }
+                  />
+                )
+              )}
             </ScrollView>
           ) : (
-            <View style={styles.emptyCard}>
-              <Text style={styles.goldenIcon}>
-                🍿
-              </Text>
-
-              <Text style={styles.emptyText}>
-                No Golden Popcorn films yet.
-              </Text>
-            </View>
+            <Text
+              style={
+                styles.emptyText
+              }
+            >
+              No Golden Popcorn films yet.
+            </Text>
           )}
         </View>
 
 
         {/* RECENT ACTIVITY */}
 
-        <View style={styles.section}>
-          <SectionTitle>Recent Activity</SectionTitle>
+        <View
+          style={
+            styles.section
+          }
+        >
+          <Text
+            style={
+              styles.sectionTitle
+            }
+          >
+            Recent Activity
+          </Text>
 
-          {recentActivity.length > 0 ? (
-            recentActivity.map(entry => (
+          {recentActivity.map(
+            entry => (
               <TouchableOpacity
-                key={entry.id}
-                style={styles.activityRow}
+                key={
+                  entry.id
+                }
+                style={
+                  styles.activity
+                }
                 onPress={() =>
-                  goToRootScreen('LogFilm', {
-                    editEntry: entry,
-                  })
+                  navigateRoot(
+                    'LogFilm',
+                    {
+                      editEntry:
+                        entry,
+                    }
+                  )
                 }
               >
-                {entry.film?.posterURL ? (
+                {entry.film
+                  ?.posterURL ? (
                   <Image
                     source={{
-                      uri: entry.film.posterURL,
+                      uri:
+                        entry.film
+                          .posterURL,
                     }}
-                    style={styles.activityPoster}
+                    style={
+                      styles.activityPoster
+                    }
                   />
                 ) : (
                   <View
                     style={[
                       styles.activityPoster,
-                      styles.posterPlaceholder,
+                      styles.placeholder,
                     ]}
                   >
-                    <Text>🎬</Text>
+                    <Text>
+                      🎬
+                    </Text>
                   </View>
                 )}
 
-                <View style={styles.activityInfo}>
+                <View
+                  style={{
+                    flex: 1,
+                  }}
+                >
                   <Text
-                    style={styles.activityTitle}
-                    numberOfLines={1}
+                    style={
+                      styles.activityTitle
+                    }
                   >
-                    {entry.film?.title}
+                    {
+                      entry.film
+                        ?.title
+                    }
                   </Text>
 
-                  <Text style={styles.activityDate}>
-                    {entry.dateWatched}
+                  <Text
+                    style={
+                      styles.activityDate
+                    }
+                  >
+                    {
+                      entry.dateWatched
+                    }
                   </Text>
 
-                  <Text style={styles.activityRating}>
-                    {'🍿'.repeat(
-                      Math.max(
-                        0,
-                        Math.round(entry.rating || 0)
-                      )
-                    )}
-                  </Text>
+                  {!!entry.rating && (
+                    <Text
+                      style={
+                        styles.rating
+                      }
+                    >
+                      {'🍿'.repeat(
+                        Math.round(
+                          entry.rating
+                        )
+                      )}
+                    </Text>
+                  )}
                 </View>
 
-                <Text style={styles.chevron}>
+                <Text
+                  style={
+                    styles.chevron
+                  }
+                >
                   ›
                 </Text>
               </TouchableOpacity>
-            ))
-          ) : (
-            <Text style={styles.emptyText}>
-              No activity yet.
-            </Text>
+            )
           )}
         </View>
 
 
-        {/* FILM COUNTS */}
+        {/* COUNTS */}
 
-        <View style={styles.section}>
-          <View style={styles.statRow}>
-            <View style={styles.statCard}>
-              <Text style={styles.statNumber}>
-                {thisYearEntries.length}
+        <View
+          style={
+            styles.section
+          }
+        >
+          <View
+            style={
+              styles.statRow
+            }
+          >
+            <View
+              style={
+                styles.statCard
+              }
+            >
+              <Text
+                style={
+                  styles.statNumber
+                }
+              >
+                {
+                  entriesThisYear.length
+                }
               </Text>
 
-              <Text style={styles.statLabel}>
-                Films in {currentYear}
+              <Text
+                style={
+                  styles.statLabel
+                }
+              >
+                Logged in {year}
               </Text>
             </View>
 
-            <View style={styles.statCard}>
-              <Text style={styles.statNumber}>
-                {diaryEntries.length}
+
+            <View
+              style={
+                styles.statCard
+              }
+            >
+              <Text
+                style={
+                  styles.statNumber
+                }
+              >
+                {
+                  diaryEntries.length
+                }
               </Text>
 
-              <Text style={styles.statLabel}>
-                Films total
+              <Text
+                style={
+                  styles.statLabel
+                }
+              >
+                Logged total
               </Text>
             </View>
           </View>
 
+
           <TouchableOpacity
-            style={styles.statsButton}
+            style={
+              styles.primaryButton
+            }
             onPress={() =>
-              goToRootScreen('Stats')
+              navigateRoot(
+                'Stats'
+              )
             }
           >
-            <Text style={styles.statsButtonText}>
+            <Text
+              style={
+                styles.primaryButtonText
+              }
+            >
               View Stats
             </Text>
 
-            <Text style={styles.statsArrow}>
+            <Text
+              style={
+                styles.primaryButtonArrow
+              }
+            >
               ›
             </Text>
           </TouchableOpacity>
@@ -406,44 +648,134 @@ export default function ProfileScreen({ navigation }) {
 
         {/* REVIEWS */}
 
-        <View style={styles.section}>
-          <View style={styles.sectionTitleRow}>
-            <SectionTitle>Reviews</SectionTitle>
+        <View
+          style={
+            styles.section
+          }
+        >
+          <View
+            style={
+              styles.sectionHeaderRow
+            }
+          >
+            <Text
+              style={
+                styles.sectionTitle
+              }
+            >
+              Reviews
+            </Text>
 
-            <Text style={styles.reviewCount}>
-              {reviewedEntries.length}
+            <Text
+              style={
+                styles.countBadge
+              }
+            >
+              {reviews.length}
             </Text>
           </View>
 
-          {recentReviews.length > 0 ? (
-            recentReviews.map(entry => (
-              <View
-                key={entry.id}
-                style={styles.reviewCard}
-              >
-                <View style={styles.reviewHeader}>
-                  <Text
-                    style={styles.reviewFilm}
-                    numberOfLines={1}
-                  >
-                    {entry.film?.title}
-                  </Text>
 
-                  <Text style={styles.reviewRating}>
-                    🍿 {entry.rating || 0}/5
-                  </Text>
-                </View>
-
-                <Text
-                  style={styles.reviewText}
-                  numberOfLines={3}
+          {recentReviews.length >
+          0 ? (
+            <FlatList
+              horizontal
+              showsHorizontalScrollIndicator={
+                false
+              }
+              data={
+                recentReviews
+              }
+              keyExtractor={
+                item =>
+                  item.id
+              }
+              contentContainerStyle={{
+                paddingRight: 16,
+              }}
+              renderItem={({
+                item,
+              }) => (
+                <TouchableOpacity
+                  style={
+                    styles.reviewCard
+                  }
+                  activeOpacity={
+                    0.85
+                  }
+                  onPress={() =>
+                    navigateRoot(
+                      'LogFilm',
+                      {
+                        editEntry:
+                          item,
+                      }
+                    )
+                  }
                 >
-                  {entry.review}
-                </Text>
-              </View>
-            ))
+                  <View
+                    style={
+                      styles.reviewTop
+                    }
+                  >
+                    <Text
+                      style={
+                        styles.reviewFilm
+                      }
+                      numberOfLines={
+                        1
+                      }
+                    >
+                      {
+                        item.film
+                          ?.title
+                      }
+                    </Text>
+
+                    <Text
+                      style={
+                        styles.reviewRating
+                      }
+                    >
+                      🍿{' '}
+                      {
+                        item.rating
+                      }
+                      /5
+                    </Text>
+                  </View>
+
+                  <Text
+                    style={
+                      styles.reviewDate
+                    }
+                  >
+                    {
+                      item.dateWatched
+                    }
+                  </Text>
+
+                  <Text
+                    style={
+                      styles.reviewText
+                    }
+                    numberOfLines={
+                      5
+                    }
+                  >
+                    {
+                      item.review
+                    }
+                  </Text>
+                </TouchableOpacity>
+              )}
+            />
           ) : (
-            <Text style={styles.emptyText}>
+            <Text
+              style={
+                styles.emptyText
+              }
+            >
               No reviews yet.
             </Text>
           )}
@@ -452,57 +784,186 @@ export default function ProfileScreen({ navigation }) {
 
         {/* LISTS */}
 
-        <View style={styles.section}>
-          <SectionTitle>Lists</SectionTitle>
+        <View
+          style={
+            styles.section
+          }
+        >
+          <View
+            style={
+              styles.sectionHeaderRow
+            }
+          >
+            <Text
+              style={
+                styles.sectionTitle
+              }
+            >
+              Lists
+            </Text>
+
+            <TouchableOpacity
+              onPress={() =>
+                navigateRoot(
+                  'Lists'
+                )
+              }
+            >
+              <Text
+                style={
+                  styles.manageText
+                }
+              >
+                Manage
+              </Text>
+            </TouchableOpacity>
+          </View>
+
 
           {lists.length > 0 ? (
-            lists.slice(0, 5).map((list, index) => (
-              <View
-                key={list.id || index}
-                style={styles.listCard}
-              >
-                <Text style={styles.listTitle}>
-                  {list.name || list.title || 'Untitled list'}
-                </Text>
+            lists
+              .slice(0, 4)
+              .map(
+                list => (
+                  <TouchableOpacity
+                    key={
+                      list.id
+                    }
+                    style={
+                      styles.listRow
+                    }
+                    onPress={() =>
+                      navigateRoot(
+                        'ListEditor',
+                        {
+                          listId:
+                            list.id,
+                        }
+                      )
+                    }
+                  >
+                    <View
+                      style={
+                        styles.listIcon
+                      }
+                    >
+                      <Text>
+                        🎞️
+                      </Text>
+                    </View>
 
-                <Text style={styles.listCount}>
-                  {list.films?.length || 0} films
-                </Text>
-              </View>
-            ))
+                    <View
+                      style={{
+                        flex: 1,
+                      }}
+                    >
+                      <Text
+                        style={
+                          styles.listName
+                        }
+                      >
+                        {
+                          list.title
+                        }
+                      </Text>
+
+                      <Text
+                        style={
+                          styles.listCount
+                        }
+                      >
+                        {list.items.length}{' '}
+                        {list.items
+                          .length ===
+                        1
+                          ? 'film'
+                          : 'films'}
+                      </Text>
+                    </View>
+
+                    <Text
+                      style={
+                        styles.chevron
+                      }
+                    >
+                      ›
+                    </Text>
+                  </TouchableOpacity>
+                )
+              )
           ) : (
-            <Text style={styles.emptyText}>
-              No lists yet.
-            </Text>
+            <TouchableOpacity
+              style={
+                styles.emptyAction
+              }
+              onPress={() =>
+                navigateRoot(
+                  'Lists'
+                )
+              }
+            >
+              <Text
+                style={
+                  styles.emptyText
+                }
+              >
+                Create your first film list
+              </Text>
+
+              <Text
+                style={
+                  styles.chevron
+                }
+              >
+                ›
+              </Text>
+            </TouchableOpacity>
           )}
         </View>
 
 
         {/* WATCHLIST */}
 
-        <View style={styles.section}>
-          <SectionTitle>Watchlist</SectionTitle>
+        <View
+          style={
+            styles.section
+          }
+        >
+          <Text
+            style={
+              styles.sectionTitle
+            }
+          >
+            Watchlist
+          </Text>
 
           {watchlist.length > 0 ? (
             <ScrollView
               horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.horizontalRow}
+              showsHorizontalScrollIndicator={
+                false
+              }
             >
-              {watchlist.slice(0, 10).map(film => (
-                <View
-                  key={film.id}
-                  style={styles.posterItem}
-                >
-                  <FilmPoster
-                    film={film}
-                    size="small"
-                  />
-                </View>
-              ))}
+              {watchlist
+                .slice(0, 12)
+                .map(
+                  film => (
+                    <FilmPoster
+                      key={
+                        film.id
+                      }
+                      film={film}
+                      width={60}
+                    />
+                  )
+                )}
             </ScrollView>
           ) : (
-            <Text style={styles.emptyText}>
+            <Text
+              style={
+                styles.emptyText
+              }
+            >
               Your watchlist is empty.
             </Text>
           )}
@@ -511,69 +972,104 @@ export default function ProfileScreen({ navigation }) {
 
         {/* BUDDIES */}
 
-        <View style={styles.section}>
-          <SectionTitle>Buddies</SectionTitle>
+        <View
+          style={
+            styles.section
+          }
+        >
+          <Text
+            style={
+              styles.sectionTitle
+            }
+          >
+            Buddies
+          </Text>
+
 
           {buddies.length > 0 ? (
             <FlatList
               horizontal
-              pagingEnabled
-              showsHorizontalScrollIndicator={false}
-              data={buddies}
-              keyExtractor={(item, index) =>
-                String(item.id || index)
+              showsHorizontalScrollIndicator={
+                false
               }
-              renderItem={({ item }) => {
-                const buddyPicture =
-                  item.avatar_url ||
-                  item.profilePicture ||
-                  item.profile_picture
-
-                return (
-                  <View style={styles.buddyCard}>
-                    {buddyPicture ? (
-                      <Image
-                        source={{
-                          uri: buddyPicture,
-                        }}
-                        style={styles.buddyAvatar}
-                      />
-                    ) : (
-                      <View
-                        style={[
-                          styles.buddyAvatar,
-                          styles.avatarPlaceholder,
-                        ]}
-                      >
-                        <Text style={{ fontSize: 28 }}>
-                          👤
-                        </Text>
-                      </View>
-                    )}
-
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.buddyName}>
-                        {item.display_name ||
-                          item.displayName ||
-                          item.username ||
-                          'Buddy'}
-                      </Text>
-
-                      {!!item.username && (
-                        <Text style={styles.buddyUsername}>
-                          {item.username.startsWith('@')
-                            ? item.username
-                            : `@${item.username}`}
-                        </Text>
-                      )}
-                    </View>
-                  </View>
-                )
+              data={
+                buddies
+              }
+              keyExtractor={
+                item =>
+                  item.user_id
+              }
+              contentContainerStyle={{
+                paddingRight: 16,
               }}
+              renderItem={({
+                item,
+              }) => (
+                <View
+                  style={
+                    styles.buddyCard
+                  }
+                >
+                  {item.profile_pic_url ? (
+                    <Image
+                      source={{
+                        uri:
+                          item.profile_pic_url,
+                      }}
+                      style={
+                        styles.buddyAvatar
+                      }
+                    />
+                  ) : (
+                    <View
+                      style={[
+                        styles.buddyAvatar,
+                        styles.placeholder,
+                      ]}
+                    >
+                      <Text
+                        style={{
+                          fontSize: 26,
+                        }}
+                      >
+                        👤
+                      </Text>
+                    </View>
+                  )}
+
+                  <Text
+                    style={
+                      styles.buddyName
+                    }
+                    numberOfLines={
+                      1
+                    }
+                  >
+                    {
+                      item.displayName
+                    }
+                  </Text>
+
+                  <Text
+                    style={
+                      styles.buddyUsername
+                    }
+                    numberOfLines={
+                      1
+                    }
+                  >
+                    @{item.username}
+                  </Text>
+                </View>
+              )}
             />
           ) : (
-            <Text style={styles.emptyText}>
-              No buddies to show yet.
+            <Text
+              style={
+                styles.emptyText
+              }
+            >
+              No buddies yet.
             </Text>
           )}
         </View>
@@ -584,316 +1080,339 @@ export default function ProfileScreen({ navigation }) {
 }
 
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: Colors.cream,
-  },
+const styles =
+  StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor:
+        Colors.cream,
+    },
 
-  header: {
-    height: 46,
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-  },
+    header: {
+      height: 48,
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: 16,
+    },
 
-  headerSpacer: {
-    width: 42,
-  },
+    headerTitle: {
+      flex: 1,
+      textAlign: 'center',
+      fontSize: 19,
+      fontWeight: '700',
+      color:
+        Colors.darkBrown,
+    },
 
-  headerTitle: {
-    flex: 1,
-    textAlign: 'center',
-    fontSize: 19,
-    fontWeight: '700',
-    color: Colors.darkBrown,
-  },
+    settingsButton: {
+      width: 42,
+      alignItems: 'flex-end',
+    },
 
-  settingsButton: {
-    width: 42,
-    alignItems: 'flex-end',
-    justifyContent: 'center',
-  },
+    settingsIcon: {
+      fontSize: 27,
+      color:
+        Colors.darkBrown,
+    },
 
-  settingsIcon: {
-    fontSize: 27,
-    color: Colors.darkBrown,
-  },
+    profileHeader: {
+      alignItems: 'center',
+      paddingTop: 16,
+      paddingBottom: 28,
+    },
 
-  profileHeader: {
-    alignItems: 'center',
-    paddingTop: 16,
-    paddingBottom: 26,
-  },
+    avatar: {
+      width: 104,
+      height: 104,
+      borderRadius: 52,
+      marginBottom: 13,
+    },
 
-  avatar: {
-    width: 104,
-    height: 104,
-    borderRadius: 52,
-    marginBottom: 14,
-  },
+    placeholder: {
+      backgroundColor:
+        Colors.cardBackground,
+      alignItems: 'center',
+      justifyContent:
+        'center',
+    },
 
-  avatarPlaceholder: {
-    backgroundColor: Colors.cardBackground,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+    displayName: {
+      fontSize: 25,
+      fontWeight: '700',
+      color:
+        Colors.darkBrown,
+    },
 
-  avatarEmoji: {
-    fontSize: 44,
-  },
+    username: {
+      fontSize: 13,
+      color:
+        Colors.subtleGray,
+      marginTop: 3,
+    },
 
-  displayName: {
-    fontSize: 25,
-    fontWeight: '700',
-    color: Colors.darkBrown,
-  },
+    section: {
+      paddingHorizontal: 16,
+      marginBottom: 28,
+    },
 
-  username: {
-    fontSize: 14,
-    color: Colors.subtleGray,
-    marginTop: 3,
-  },
+    sectionTitle: {
+      fontSize: 18,
+      fontWeight: '700',
+      color:
+        Colors.darkBrown,
+      marginBottom: 12,
+    },
 
-  section: {
-    paddingHorizontal: 16,
-    marginBottom: 28,
-  },
+    sectionHeaderRow: {
+      flexDirection: 'row',
+      justifyContent:
+        'space-between',
+      alignItems:
+        'flex-start',
+    },
 
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: Colors.darkBrown,
-    marginBottom: 12,
-  },
+    posterTitle: {
+      marginTop: 5,
+      fontSize: 10,
+      lineHeight: 13,
+      color:
+        Colors.darkBrown,
+    },
 
-  sectionTitleRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-  },
+    emptyText: {
+      fontSize: 13,
+      color:
+        Colors.subtleGray,
+    },
 
-  reviewCount: {
-    minWidth: 28,
-    textAlign: 'center',
-    backgroundColor: Colors.cardBackground,
-    borderRadius: 14,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    fontSize: 12,
-    fontWeight: '700',
-    color: Colors.sepiaBrown,
-  },
+    activity: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: '#fff',
+      borderRadius: 12,
+      padding: 8,
+      marginBottom: 8,
+    },
 
-  horizontalRow: {
-    paddingRight: 16,
-  },
+    activityPoster: {
+      width: 42,
+      height: 62,
+      borderRadius: 6,
+      marginRight: 10,
+    },
 
-  posterItem: {
-    marginRight: 10,
-  },
+    activityTitle: {
+      fontSize: 14,
+      fontWeight: '600',
+      color:
+        Colors.darkBrown,
+    },
 
-  posterTitle: {
-    marginTop: 5,
-    fontSize: 10,
-    lineHeight: 13,
-    color: Colors.darkBrown,
-  },
+    activityDate: {
+      fontSize: 11,
+      color:
+        Colors.subtleGray,
+      marginTop: 3,
+    },
 
-  emptyText: {
-    fontSize: 14,
-    color: Colors.subtleGray,
-  },
+    rating: {
+      fontSize: 11,
+      marginTop: 4,
+    },
 
-  emptyCard: {
-    minHeight: 80,
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 16,
-  },
+    chevron: {
+      fontSize: 26,
+      color:
+        Colors.subtleGray,
+    },
 
-  goldenIcon: {
-    fontSize: 28,
-    marginBottom: 6,
-  },
+    statRow: {
+      flexDirection: 'row',
+      gap: 10,
+    },
 
-  activityRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 8,
-    marginBottom: 8,
-  },
+    statCard: {
+      flex: 1,
+      backgroundColor: '#fff',
+      borderRadius: 14,
+      alignItems: 'center',
+      paddingVertical: 18,
+    },
 
-  activityPoster: {
-    width: 42,
-    height: 62,
-    borderRadius: 6,
-    marginRight: 10,
-  },
+    statNumber: {
+      fontSize: 28,
+      fontWeight: '800',
+      color:
+        Colors.darkBrown,
+    },
 
-  posterPlaceholder: {
-    backgroundColor: Colors.cardBackground,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+    statLabel: {
+      fontSize: 12,
+      color:
+        Colors.subtleGray,
+      marginTop: 4,
+    },
 
-  activityInfo: {
-    flex: 1,
-  },
+    primaryButton: {
+      backgroundColor:
+        Colors.warmRed,
+      borderRadius: 12,
+      paddingHorizontal: 15,
+      paddingVertical: 14,
+      marginTop: 10,
+      flexDirection: 'row',
+      alignItems: 'center',
+    },
 
-  activityTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: Colors.darkBrown,
-  },
+    primaryButtonText: {
+      flex: 1,
+      color: '#fff',
+      fontWeight: '700',
+    },
 
-  activityDate: {
-    fontSize: 11,
-    color: Colors.subtleGray,
-    marginTop: 3,
-  },
+    primaryButtonArrow: {
+      color: '#fff',
+      fontSize: 24,
+    },
 
-  activityRating: {
-    fontSize: 11,
-    marginTop: 4,
-  },
+    countBadge: {
+      backgroundColor:
+        Colors.cardBackground,
+      paddingHorizontal: 9,
+      paddingVertical: 4,
+      borderRadius: 14,
+      fontSize: 12,
+      fontWeight: '700',
+      color:
+        Colors.sepiaBrown,
+    },
 
-  chevron: {
-    fontSize: 28,
-    color: Colors.subtleGray,
-    paddingHorizontal: 8,
-  },
+    reviewCard: {
+      width: 280,
+      minHeight: 150,
+      backgroundColor: '#fff',
+      borderRadius: 14,
+      padding: 14,
+      marginRight: 10,
+    },
 
-  statRow: {
-    flexDirection: 'row',
-    gap: 10,
-  },
+    reviewTop: {
+      flexDirection: 'row',
+      alignItems: 'center',
+    },
 
-  statCard: {
-    flex: 1,
-    backgroundColor: '#fff',
-    borderRadius: 14,
-    paddingVertical: 18,
-    paddingHorizontal: 12,
-    alignItems: 'center',
-  },
+    reviewFilm: {
+      flex: 1,
+      fontSize: 15,
+      fontWeight: '700',
+      color:
+        Colors.darkBrown,
+      marginRight: 8,
+    },
 
-  statNumber: {
-    fontSize: 28,
-    fontWeight: '800',
-    color: Colors.darkBrown,
-  },
+    reviewRating: {
+      fontSize: 12,
+      color:
+        Colors.sepiaBrown,
+      fontWeight: '600',
+    },
 
-  statLabel: {
-    marginTop: 4,
-    fontSize: 12,
-    color: Colors.subtleGray,
-  },
+    reviewDate: {
+      fontSize: 10,
+      color:
+        Colors.subtleGray,
+      marginTop: 4,
+    },
 
-  statsButton: {
-    marginTop: 10,
-    borderRadius: 12,
-    paddingHorizontal: 15,
-    paddingVertical: 14,
-    backgroundColor: Colors.warmRed,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
+    reviewText: {
+      fontSize: 13,
+      lineHeight: 18,
+      color:
+        Colors.sepiaBrown,
+      marginTop: 10,
+    },
 
-  statsButtonText: {
-    flex: 1,
-    color: '#fff',
-    fontSize: 15,
-    fontWeight: '700',
-  },
+    manageText: {
+      fontSize: 13,
+      color:
+        Colors.warmRed,
+      fontWeight: '600',
+    },
 
-  statsArrow: {
-    color: '#fff',
-    fontSize: 24,
-  },
+    listRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: '#fff',
+      borderRadius: 12,
+      padding: 11,
+      marginBottom: 8,
+    },
 
-  reviewCard: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 13,
-    marginBottom: 8,
-  },
+    listIcon: {
+      width: 42,
+      height: 42,
+      borderRadius: 9,
+      backgroundColor:
+        Colors.cardBackground,
+      alignItems: 'center',
+      justifyContent:
+        'center',
+      marginRight: 10,
+    },
 
-  reviewHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 6,
-  },
+    listName: {
+      fontSize: 14,
+      fontWeight: '600',
+      color:
+        Colors.darkBrown,
+    },
 
-  reviewFilm: {
-    flex: 1,
-    fontSize: 14,
-    fontWeight: '700',
-    color: Colors.darkBrown,
-  },
+    listCount: {
+      fontSize: 11,
+      color:
+        Colors.subtleGray,
+      marginTop: 2,
+    },
 
-  reviewRating: {
-    fontSize: 12,
-    color: Colors.sepiaBrown,
-    fontWeight: '600',
-  },
+    emptyAction: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: '#fff',
+      borderRadius: 12,
+      padding: 14,
+    },
 
-  reviewText: {
-    fontSize: 13,
-    lineHeight: 18,
-    color: Colors.sepiaBrown,
-  },
+    buddyCard: {
+      width: 145,
+      backgroundColor: '#fff',
+      borderRadius: 14,
+      padding: 14,
+      marginRight: 10,
+      alignItems: 'center',
+    },
 
-  listCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 14,
-    marginBottom: 8,
-  },
+    buddyAvatar: {
+      width: 58,
+      height: 58,
+      borderRadius: 29,
+      marginBottom: 8,
+    },
 
-  listTitle: {
-    flex: 1,
-    fontWeight: '600',
-    color: Colors.darkBrown,
-  },
+    buddyName: {
+      fontSize: 14,
+      fontWeight: '700',
+      color:
+        Colors.darkBrown,
+      textAlign: 'center',
+      width: '100%',
+    },
 
-  listCount: {
-    fontSize: 12,
-    color: Colors.subtleGray,
-  },
-
-  buddyCard: {
-    width: 310,
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#fff',
-    borderRadius: 14,
-    padding: 14,
-    marginRight: 10,
-  },
-
-  buddyAvatar: {
-    width: 54,
-    height: 54,
-    borderRadius: 27,
-    marginRight: 12,
-  },
-
-  buddyName: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: Colors.darkBrown,
-  },
-
-  buddyUsername: {
-    fontSize: 12,
-    color: Colors.subtleGray,
-    marginTop: 2,
-  },
-})
+    buddyUsername: {
+      fontSize: 11,
+      color:
+        Colors.subtleGray,
+      marginTop: 2,
+      width: '100%',
+      textAlign: 'center',
+    },
+  })
