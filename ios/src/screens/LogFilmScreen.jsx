@@ -63,11 +63,16 @@ export default function LogFilmScreen({ route, navigation }) {
       await logFilm(entry)
       // Navigate back immediately — diary reflects optimistic update already
        onClose?.() ?? navigation?.goBack()
-    } catch (e) {
-      Alert.alert('Error', 'Could not save entry. Please try again.')
-    } finally {
-      setIsSaving(false)
-    }
+      } catch (e) {
+        console.error('Save film error:', e)
+      
+        Alert.alert(
+          'Error',
+          e?.message || 'Could not save entry. Please try again.'
+        )
+      } finally {
+        setIsSaving(false)
+      }
   }
 
   if (selectedFilm) {
