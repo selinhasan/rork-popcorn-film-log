@@ -121,32 +121,71 @@ try {
     load()
   }, [])
 
-  const logFilm = useCallback(async (entry) => {
-    const tempId = entry.id
-    // Optimistic update with temp id
-    setDiaryEntries(prev => [entry, ...prev])
-    // Insert and get back the server-generated UUID
-    const { data, error } = await supabase
-      .from('filmlogs')
-      .insert(entryToRow(entry))
-      .select('id')
-      .single()
-    if (error) {
-      // Rollback optimistic update
-      setDiaryEntries(prev => prev.filter(e => e.id !== tempId))
-      throw new Error(error.message)
-    }
-    const serverId = data.id
-    // Swap temp id for the real UUID in state
-    setDiaryEntries(prev => prev.map(e => e.id === tempId ? { ...e, id: serverId } : e))
-    // Cache the full film object under the real UUID
-    try {
-      const cached = await AsyncStorage.getItem(`filmcache_${user?.id}`)
-      const filmCache = cached ? JSON.parse(cached) : {}
-      filmCache[serverId] = entry.film
-      await AsyncStorage.setItem(`filmcache_${user?.id}`, JSON.stringify(filmCache))
-    } catch (_) {}
-  }, [user?.id])
+const logFilm = useCallback(async (entry) => {
+  const tempId = entry.id
+
+  // Optimistic update
+  setDiaryEntries(prev => [entry, ...prev])
+
+  const row = entryToRow(entry)
+
+  console.log('Saving filmlog row:', row)
+
+  const { data, error } = await supabase
+    .from('filmlogs')
+    .insert(row)
+    .select('id')
+    .single()
+
+  if (error) {
+    console.error('Supabase filmlog insert error:', error)
+
+    // Roll back optimistic update
+    setDiaryEntries(prev =>
+      prev.filter(e => e.id !== tempId)
+    )
+
+    throw new Error(
+      error.message || 'Supabase insert failed'
+    )
+  }
+
+  console.log('Saved filmlog:', data)
+
+  const serverId = data.id
+
+  // Replace temporary ID with database UUID
+  setDiaryEntries(prev =>
+    prev.map(e =>
+      e.id === tempId
+        ? { ...e, id: serverId }
+        : e
+    )
+  )
+
+  // Cache full film details locally
+  try {
+    const cached = await AsyncStorage.getItem(
+      `filmcache_${user?.id}`
+    )
+
+    const filmCache = cached
+      ? JSON.parse(cached)
+      : {}
+
+    filmCache[serverId] = entry.film
+
+    await AsyncStorage.setItem(
+      `filmcache_${user?.id}`,
+      JSON.stringify(filmCache)
+    )
+  } catch (cacheError) {
+    console.error(
+      'Film cache error:',
+      cacheError
+    )
+  }
+}, [user?.id])
 
   const removeEntry = useCallback(async (entryId) => {
     setDiaryEntries(prev => prev.filter(e => e.id !== entryId))
