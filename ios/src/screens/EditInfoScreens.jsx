@@ -64,14 +64,126 @@ function ScreenShell({
 }
 
 
+async function updatePublicProfile(
+  userId,
+  patch
+) {
+  const publicPatch = {}
+
+
+  if (
+    Object.prototype.hasOwnProperty.call(
+      patch,
+      'username'
+    )
+  ) {
+    publicPatch.username =
+      patch.username
+  }
+
+
+  if (
+    Object.prototype.hasOwnProperty.call(
+      patch,
+      'display_name'
+    )
+  ) {
+    publicPatch[
+      'Display name'
+    ] =
+      patch.display_name
+  }
+
+
+  if (
+    Object.prototype.hasOwnProperty.call(
+      patch,
+      'avatar_url'
+    )
+  ) {
+    publicPatch.profile_pic_url =
+      patch.avatar_url
+  }
+
+
+  if (
+    Object.keys(
+      publicPatch
+    ).length === 0
+  ) {
+    return
+  }
+
+
+  const {
+    data,
+    error,
+  } = await supabase
+    .from(
+      'public_user_info'
+    )
+    .update(
+      publicPatch
+    )
+    .eq(
+      'user_id',
+      userId
+    )
+    .select(
+      'user_id'
+    )
+
+
+  if (error) {
+    throw new Error(
+      error.message
+    )
+  }
+
+
+  // If there isn't yet a public profile row,
+  // create one.
+  if (
+    !data ||
+    data.length === 0
+  ) {
+    const {
+      error:
+        insertError,
+    } = await supabase
+      .from(
+        'public_user_info'
+      )
+      .insert({
+        user_id:
+          userId,
+
+        ...publicPatch,
+      })
+
+
+    if (insertError) {
+      throw new Error(
+        insertError.message
+      )
+    }
+  }
+}
+
+
 async function updateMetadata(
   user,
   patch
 ) {
   const existing =
-    user?.user_metadata || {}
+    user?.user_metadata ||
+    {}
 
-  const { data, error } =
+
+  const {
+    data,
+    error,
+  } =
     await supabase.auth.updateUser({
       data: {
         ...existing,
@@ -79,9 +191,19 @@ async function updateMetadata(
       },
     })
 
+
   if (error) {
-    throw new Error(error.message)
+    throw new Error(
+      error.message
+    )
   }
+
+
+  await updatePublicProfile(
+    user.id,
+    patch
+  )
+
 
   return data.user
 }
