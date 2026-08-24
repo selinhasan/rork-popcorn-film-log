@@ -75,10 +75,9 @@ export default function DiaryScreen({ navigation }) {
         <Text style={styles.headerTitle}>Popcorn</Text>
       </View>
 
-      {/* Log Button */}
       <TouchableOpacity
         style={styles.logButton}
-        onPress={() => navigation.getParent()?.navigate('LogFilm')}
+        onPress={() => navigation.navigate('LogFilm')}
         activeOpacity={0.85}
       >
         <Text style={styles.logButtonText}>🍿  Log a Film</Text>
