@@ -96,16 +96,26 @@ export function AppProvider({ children }) {
     if (trendingFilms.length > 0) return
     const load = async () => {
       setIsLoadingTMDb(true)
-      try {
-        const g = await TMDb.getGenres()
-        setGenres(g)
-        const [trending, popular] = await Promise.all([
-          TMDb.getTrending(g),
-          TMDb.getPopular(g),
-        ])
-        setTrendingFilms(trending)
-        setPopularFilms(popular)
-      } catch (_) {}
+try {
+  const g = await TMDb.getGenres()
+
+  console.log('TMDb genres loaded:', g.length)
+
+  setGenres(g)
+
+  const [trending, popular] = await Promise.all([
+    TMDb.getTrending(g),
+    TMDb.getPopular(g),
+  ])
+
+  console.log('TMDb trending loaded:', trending.length)
+  console.log('TMDb popular loaded:', popular.length)
+
+  setTrendingFilms(trending)
+  setPopularFilms(popular)
+} catch (error) {
+  console.error('TMDb initial load failed:', error)
+}
       setIsLoadingTMDb(false)
     }
     load()
@@ -174,17 +184,30 @@ export function AppProvider({ children }) {
     await AsyncStorage.setItem(`topfive_${user?.id}`, JSON.stringify(films))
   }, [user?.id])
 
-  const searchFilms = useCallback(async (query) => {
-    if (!query.trim()) { setSearchResults([]); return }
-    setIsSearching(true)
-    try {
-      const results = await TMDb.searchMulti(query, genres)
-      setSearchResults(results)
-    } catch (_) {
-      setSearchResults([])
-    }
+const searchFilms = useCallback(async (query) => {
+  if (!query.trim()) {
+    setSearchResults([])
+    return
+  }
+
+  console.log('Searching TMDb for:', query)
+
+  setIsSearching(true)
+
+  try {
+    const results = await TMDb.searchMulti(query, genres)
+
+    console.log('TMDb search results:', results)
+
+    setSearchResults(results)
+  } catch (error) {
+    console.error('TMDb search failed:', error)
+
+    setSearchResults([])
+  } finally {
     setIsSearching(false)
-  }, [genres])
+  }
+}, [genres])
 
   const discoverFilms = useCallback(async (genreId, sortBy) => {
     try {
